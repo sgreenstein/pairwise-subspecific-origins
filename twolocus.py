@@ -42,15 +42,15 @@ CHROMO_OFFSETS = np.cumsum([0] + CHROMO_SIZES)
 
 class TwoLocus:
 
-	def __init__(self, in_path = None):
+	def __init__(self, in_path = None, chrom_sizes = None):
 		""" Load a databse of pairwise labels for a collection of samples.
 		:param in_path: default path to database of pre-computed intervals
 		"""
 		self.path = in_path if in_path else os.getcwd()
 		self.available = self.list_available_strains()
+		self.sizes = chrom_sizes if chrom_sizes else CHROMO_SIZES
+		self.offsets = np.cumsum([0] + chrom_sizes) if chrom_sizes else CHROMO_OFFSETS
 
-
-	@classmethod
 	def genome_index(self, chromosome, position):
 		""" Converts chromosome and position to a single position in a coordinate system that covers
 		the whole genome.  Chromosomes are just concanteated in karyotype order.
@@ -58,7 +58,7 @@ class TwoLocus:
 		:param position: position on chromosome
 		:return: integer denoting chromosome and position
 		"""
-		return CHROMO_OFFSETS[chromosome-1] + position
+		return self.offsets[chromosome-1] + position
 
 
 	def list_available_strains(self, in_path = None):
@@ -122,8 +122,8 @@ class TwoLocus:
 		# add null interval to end of each chromosome
 		for chromosomes in strains.itervalues():
 			for chromosome, intervals in chromosomes.iteritems():
-				if intervals[-1] < CHROMO_SIZES[chromosome-1]:
-					intervals.append((NO_SPECIES, CHROMO_SIZES[chromosome-1]))
+				if intervals[-1] < self.sizes[chromosome-1]:
+					intervals.append((NO_SPECIES, self.sizes[chromosome-1]))
 		return strains
 
 
@@ -251,12 +251,10 @@ class TwoLocus:
 				areas[row-1,col-1] = (intervals[row]-intervals[row-1]) * (intervals[col]-intervals[col-1])
 				if col > row:
 					areas[col-1,row-1] = areas[row-1,col-1]
-
-		print intervals
-
+					
 		areas_masked = OrderedDict()
 		# get denominator for genomic area
-		genome_len = sum(float(x)/1.0e6 for x in CHROMO_SIZES)-(3.0*2)
+		genome_len = sum(float(x)/1.0e6 for x in self.sizes)-(3.0*2)
 		denom = genome_len**2
 		for combo, vals in counts.iteritems():
 			factor = 2.0 if combo in INTRA_SUBSPECIFIC else 1.0
@@ -267,10 +265,7 @@ class TwoLocus:
 def main():
 	""" Run some tests with a dummy file, overriding chromosome lengths locally for sake of testing. """
 
-	CHROMO_SIZES = [ 20e6, 20e6 ]
-	CHROMO_OFFSETS = np.cumsum([0] + CHROMO_SIZES)
-
-	x = TwoLocus()
+	x = TwoLocus(chrom_sizes = [20e6, 20e6])
 	x.preprocess(["test.csv"])
 	rez = x.calculate_pairwise_frequencies(["A","B","C"])
 
