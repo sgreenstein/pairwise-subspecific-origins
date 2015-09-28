@@ -251,13 +251,11 @@ class TwoLocus:
 				areas[row-1,col-1] = (intervals[row]-intervals[row-1]) * (intervals[col]-intervals[col-1])
 				if col > row:
 					areas[col-1,row-1] = areas[row-1,col-1]
-					
+
 		areas_masked = OrderedDict()
-		# get denominator for genomic area
-		genome_len = sum(float(x)/1.0e6 for x in self.sizes)-(3.0*2)
-		denom = genome_len**2
+		denom = np.sum(np.array(self.sizes)/1.0e6)**2
 		for combo, vals in counts.iteritems():
-			factor = 2.0 if combo in INTRA_SUBSPECIFIC else 1.0
+			factor = 1
 			areas_masked.update({ combo: np.sum((vals > 0)*areas*factor)/denom })
 		return areas_masked
 
@@ -267,23 +265,24 @@ def main():
 
 	x = TwoLocus(chrom_sizes = [20e6, 20e6])
 	x.preprocess(["test.csv"])
-	rez = x.calculate_pairwise_frequencies(["A","B","C"])
+	rez = x.calculate_pairwise_frequencies(["A"])
 
 	combos = OrderedDict()
 	for s1, i1 in SPECIES_TO_INT.iteritems():
 		for s2, i2 in SPECIES_TO_INT.iteritems():
-			combos[ s1 + "_" + s2 ] = -1*(i1+i2)
-			combos[ s2 + "_" + s1 ] = i1+i2
+			combos[ -1*(i1+i2) ] = s1 + " :: " + s2
+			combos[ i1+i2 ] = s2 + " :: " + s1
 
 	areas = x.calculate_genomic_area(rez[0], rez[1])
 	total = 0.0
-	for combo, code in combos.iteritems():
+	for code, combo in combos.iteritems():
 		if code in areas:
-			print "\t{} ({}): {: 1.5f}".format(combo, code, areas[code])
+			print "\t{:15s}({:4d}):{:1.5f}".format(combo, code, areas[code])
 			total += areas[code]
-	print total
+	print "\t{:21s}:{:1.5f}".format("Total", total)
 
-	for combo, code in combos.iteritems():
+	sys.exit(1)
+	for code, combo in combos.iteritems():
 		print "\n", rez[1]
 		print "\t{} ({}):\n{}".format(combo, code, rez[0][code])
 
