@@ -1,0 +1,6 @@
+# pairwise-subspecies-origins
+
+Tools for studying epistasis in the mouse genome.  More generally, given a set of genomes, each of which consists of labelled intervals, count the frequency of two-locus combinations.
+
+The class `TwoLocus` implements the key functions.  To do run a test on a toy example, run `python twolocus.py`. This will compute incidence matrices from the labelled intervals in `test.csv`, then count and display the frequency of two-locus combinations.
+
