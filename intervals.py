@@ -9,15 +9,17 @@ Purpose: Treat the genome as a series of intervals, some of which have a known s
 import numpy as np
 import csv
 import string
+from collections import Counter
 
 # integer representations of subspecies
 NO_SPECIES = 0
 SPECIES_TO_INT = {'None': NO_SPECIES, 'Dom': 0o001, 'Mus': 0o010, 'Cast': 0o100}
 MAX_POSITION = 200000000  # 200m, bigger than the largest mouse chromosome
-CHROMO_TO_INT = {str(x): x for x in xrange(20)}
+CHROMO_TO_INT = {str(x): x for x in xrange(1, 20)}
 CHROMO_TO_INT['X'] = 21
 CHROMO_TO_INT['Y'] = 22
 CHROMO_TO_INT['MT'] = 23
+INT_TO_CHROMO = [str(x) for x in xrange(0, 20)] + ['X', 'Y', 'MT']
 CHROMO_SIZES = [200000000] * len(CHROMO_TO_INT)  # upper bound on size of each chromosome
 
 
@@ -28,6 +30,14 @@ def genome_index(chromosome, position):
     :return: integer denoting chromosome and position
     """
     return ((chromosome - 1) * MAX_POSITION) + position
+
+
+def index_to_chrom_pos(index):
+    chromo_num = 1
+    while index > CHROMO_SIZES[chromo_num]:
+        index -= CHROMO_SIZES[chromo_num]
+        chromo_num += 1
+    return INT_TO_CHROMO[chromo_num], index
 
 
 def make_source_matrix(strain_name, chromosomes):
@@ -162,15 +172,55 @@ def source_frequencies(strain_names):
     print source_counts
 
 
+def sources_at_point_pair(chrom1, pos1, chrom2, pos2, strain_names):
+    """ Prints the range of the 2D interval and the counts of subspecific combos at 2 loci in the genome
+    :param chrom1: chromosome of one locus
+    :param pos1: position of one locus
+    :param chrom2: chromosome of another locus
+    :param pos2: position of another locus
+    :param strain_names: list of strain names to analyze
+    """
+    coords = [genome_index(CHROMO_TO_INT[str(chrom1)], pos1), genome_index(CHROMO_TO_INT[str(chrom2)], pos2)]
+    mins = [0] * 2
+    maxes = [np.sum(CHROMO_SIZES)] * 2
+    coords.sort()
+    source_counts = Counter()
+    for strain_name in strain_names:
+        intervals = np.load(strain_name + '_intervals.npy')
+        sources = np.load(strain_name + '_sources.npy')
+        print intervals
+        print sources
+        # find interval containing each location
+        i = 0
+        interval_indices = [None, None]
+        print 'coords', coords
+        for loc_num in xrange(2):
+            while intervals[i] < coords[loc_num]:
+                i += 1
+            if i > 0:
+                mins[loc_num] = max(mins[loc_num], intervals[i-1])
+            maxes[loc_num] = min(maxes[loc_num], intervals[i])
+            interval_indices[loc_num] = i
+        source_counts[sources[interval_indices[0], interval_indices[1]]] += 1
+    print 'Proximal range: Chr %s:%d - Chr %s:%d' % tuple(x for x in index_to_chrom_pos(mins[0]) + index_to_chrom_pos(maxes[0]))
+    print 'Distal range: Chr %s:%d - Chr %s:%d' % tuple(x for x in index_to_chrom_pos(mins[1]) + index_to_chrom_pos(maxes[1]))
+    print source_counts
+    for species1, species1_int in SPECIES_TO_INT.iteritems():
+        for species2, species2_int in SPECIES_TO_INT.iteritems():
+            if species1_int + species2_int in source_counts:
+                print species1, '+', species2, source_counts[species1_int + species2_int]
+
+
 def main():
     # you should only need to run these once
-    converted_file_names = rgb_to_subspecies(['put', 'file', 'names', 'here'])
-    file_names = converted_file_names + ['put files', 'you do not need to convert', 'here']
-    strain_names = preprocess(file_names)
-    print strain_names
+    # converted_file_names = rgb_to_subspecies(['put', 'file', 'names', 'here'])
+    # file_names = converted_file_names + ['put files', 'you do not need to convert', 'here']
+    # strain_names = preprocess(file_names)
+    # print strain_names
     # the following you'll need to run multiple times
     # for any subset you want of strain names, run something like:
-    source_frequencies(strain_names)
+    # source_frequencies(strain_names)
+    sources_at_point_pair(19, 3500000, 19, 10000000, ['CASTEiJ', 'AJ'])
 
 
 if __name__ == '__main__':
