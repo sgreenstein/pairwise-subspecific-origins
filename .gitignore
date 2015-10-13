@@ -1,2 +1,4 @@
 # numpy files created by tests
 *.npy
+# IDE config files
+.idea/

@@ -13,6 +13,7 @@ import numpy as np
 import csv
 import string
 import glob
+import logging
 
 from time import clock
 from collections import OrderedDict, Counter
@@ -22,8 +23,7 @@ from collections import OrderedDict, Counter
 NO_SPECIES = 0
 SPECIES_TO_INT = OrderedDict({'None': NO_SPECIES, 'dom': 0o001, 'mus': 0o010, 'cas': 0o100})
 # identify 'homosubspecific' allele combinations
-INTRA_SUBSPECIFIC = [v + v for k, v in SPECIES_TO_INT.iteritems()] + [-1 * (v + v) for k, v in
-                                                                      SPECIES_TO_INT.iteritems()]
+INTRA_SUBSPECIFIC = [v + v for v in SPECIES_TO_INT.itervalues()] + [-1 * (v + v) for v in SPECIES_TO_INT.itervalues()]
 
 # integer representations of chromosomes
 CHROMO_TO_INT = OrderedDict()
@@ -33,14 +33,14 @@ for x in xrange(1, 21):
 CHROMO_TO_INT['Y'] = 21
 CHROMO_TO_INT['MT'] = 22
 
+INT_TO_CHROMO = {v: k for k, v in CHROMO_TO_INT.iteritems()}
+
 # chromosome sizes (mm9 coordinates)
 CHROMO_SIZES = [197195432, 181748087, 159599783, 155630120, 152537259,
                 149517037, 152524553, 131738871, 124076172, 129993255,
                 121843856, 121257530, 120284312, 125194864, 103494974,
                 98319150, 95272651, 90772031, 61342430, 166650296,
                 91744698, 16299]
-CHROMO_OFFSETS = np.cumsum([0] + CHROMO_SIZES)
-INT_TO_CHROMO = [str(x) for x in xrange(0, 21)] + ['Y', 'MT']
 
 
 class TwoLocus:
@@ -51,18 +51,22 @@ class TwoLocus:
         self.path = in_path if in_path else os.getcwd()
         self.available = self.list_available_strains()
         self.sizes = chrom_sizes if chrom_sizes else CHROMO_SIZES
-        self.offsets = np.cumsum([0] + chrom_sizes) if chrom_sizes else CHROMO_OFFSETS
+        self.offsets = np.cumsum([0] + chrom_sizes)
 
     def genome_index(self, chromosome, position):
         """ Converts chromosome and position to a single position in a coordinate system that covers
-        the whole genome.  Chromosomes are just concanteated in karyotype order.
+        the whole genome.  Chromosomes are just concatenated in karyotype order.
         :param chromosome: integer representation of chromosome
         :param position: position on chromosome
         :return: integer denoting chromosome and position
         """
         return self.offsets[chromosome - 1] + position
 
-    def index_to_chrom_pos(self, index):
+    def chrom_and_pos(self, index):
+        """ Converts a single genome position to a chromosome and position
+        :param index: integer denoting chromosome and position
+        :return: string representation of chromosome, position on chromosome
+        """
         chromo_num = 1
         while index > self.sizes[chromo_num]:
             index -= self.sizes[chromo_num]
@@ -153,8 +157,7 @@ class TwoLocus:
         for interval_num in xrange(num_intervals):
             sources[:, interval_num] = (source_array + sources[:, interval_num])
         # prox::dist is upper triangle; dist::prox is lower triangle
-        sources_new = np.empty([num_intervals, num_intervals], dtype=np.int8)
-        sources_new = np.triu(sources) + -1 * np.tril(sources, k=-1)
+        sources_new = np.triu(sources) + -1 * np.tril(sources, k=-1).astype(np.int8)
         np.save(os.path.join(in_path, strain_name + "_intervals.npy"), intervals)
         np.save(os.path.join(in_path, strain_name + "_sources.npy"), sources_new)
 
@@ -187,7 +190,8 @@ class TwoLocus:
         :param verbose: spit out progress messages to stderr
         """
         if verbose:
-            sys.stderr.write("Loading intervals...\n")
+            logging.basicConfig(level=logging.INFO)
+        logging.info('Loading intervals')
 
         in_path = self.path if self.path else os.getcwd()
         interval_lists = []
@@ -197,13 +201,11 @@ class TwoLocus:
             interval_dict[strain_name] = np.copy(interval_lists[-1])
 
         # compute elementary intervals
-        if verbose:
-            sys.stderr.write("Computing elementary intervals...")
+        logging.info("Computing elementary intervals...")
         elem_intervals = self.make_elementary_intervals(interval_lists)
-        if verbose:
-            sys.stderr.write(" {} total intervals\n".format(len(elem_intervals)))
+        logging.info("%d total intervals", len(elem_intervals))
 
-        # dictionary of matrices, one for each combination of two sources. i.e. 1 matrix has the counts for the dom-mus combo
+        # dictionary of matrices, one for each combo of two sources. i.e. 1 matrix has the counts for the dom-mus combo
         # elementary intervals are along the axes
         # Each element contains the number of samples that have that matrix's combo at that pair of intervals
         source_counts = {}
@@ -214,14 +216,12 @@ class TwoLocus:
                 source_counts[-1 * (source1 + source2)] = np.zeros([len(elem_intervals), len(elem_intervals)],
                                                                    dtype=np.int16)
         # fill in matrices
-        if verbose:
-            sys.stderr.write("Counting incidence of subspecies pairs...\n")
+        logging.info("Counting incidence of subspecies pairs...")
         for strain_name in strain_names:
-            sys.stderr.write("\t-- {}\n".format(strain_name))
+            logging.info("\t-- %s", strain_name)
             start = clock()
             intervals = interval_dict[strain_name]
             sources = np.load(os.path.join(in_path, strain_name + "_sources.npy"))
-            elem_row = 0
             # map this strain's intervals onto the elementary intervals
             breaks = np.searchsorted(elem_intervals, intervals)
             for row, row_end in enumerate(intervals):
@@ -233,8 +233,7 @@ class TwoLocus:
                         for i in col_ind:
                             source_counts[source][row_ind, i] += 1
             end = clock()
-            if verbose:
-                sys.stderr.write("\t\t... in {} seconds\n".format(end - start))
+            logging.info("\t\t... in %.2f seconds", end - start)
 
         return source_counts, elem_intervals
 
@@ -290,8 +289,10 @@ class TwoLocus:
                 maxes[loc_num] = min(maxes[loc_num], intervals[i])
                 interval_indices[loc_num] = i
             source_counts[sources[interval_indices[0], interval_indices[1]]] += 1
-        print 'Proximal range: Chr %s:%d - Chr %s:%d' % tuple(x for x in self.index_to_chrom_pos(mins[0]) + self.index_to_chrom_pos(maxes[0]))
-        print 'Distal range: Chr %s:%d - Chr %s:%d' % tuple(x for x in self.index_to_chrom_pos(mins[1]) + self.index_to_chrom_pos(maxes[1]))
+        print 'Proximal range: Chr %s:%d - Chr %s:%d'\
+              % tuple(cp for cp in self.chrom_and_pos(mins[0]) + self.chrom_and_pos(maxes[0]))
+        print 'Distal range: Chr %s:%d - Chr %s:%d'\
+              % tuple(cp for cp in self.chrom_and_pos(mins[1]) + self.chrom_and_pos(maxes[1]))
         print source_counts
         for species1, species1_int in SPECIES_TO_INT.iteritems():
             for species2, species2_int in SPECIES_TO_INT.iteritems():
