@@ -14,16 +14,10 @@ import csv
 import string
 import glob
 import logging
+import subspecies
 
 from time import clock
 from collections import OrderedDict, Counter
-
-# --- CONSTANTS --- #
-# integer representations of subspecies
-NO_SPECIES = 0
-SPECIES_TO_INT = OrderedDict({'None': NO_SPECIES, 'dom': 0o001, 'mus': 0o010, 'cas': 0o100})
-# identify 'homosubspecific' allele combinations
-INTRA_SUBSPECIFIC = [v + v for v in SPECIES_TO_INT.itervalues()] + [-1 * (v + v) for v in SPECIES_TO_INT.itervalues()]
 
 # integer representations of chromosomes
 CHROMO_TO_INT = OrderedDict()
@@ -126,40 +120,40 @@ class TwoLocus:
                     lastEnd = 0 if not intervals else intervals[-1][1]
                     # add null interval if there is a gap between intervals with assigned subspecies
                     if not int(row[START]) - 1 <= lastEnd <= int(row[START]) + 1:
-                        intervals.append((NO_SPECIES, int(row[START])))
-                    intervals.append((SPECIES_TO_INT[row[SUBSPECIES]], int(row[END])))
+                        intervals.append((subspecies.NONE, int(row[START])))
+                    intervals.append((subspecies.to_int(row[SUBSPECIES]), int(row[END])))
         # add null interval to end of each chromosome
         for chromosomes in strains.itervalues():
             for chromosome, intervals in chromosomes.iteritems():
                 if intervals[-1] < self.sizes[chromosome - 1]:
-                    intervals.append((NO_SPECIES, self.sizes[chromosome - 1]))
+                    intervals.append((subspecies.NONE, self.sizes[chromosome - 1]))
         return strains
 
     def make_incidence_matrix(self, strain_name, chromosomes):
         """ Constructs and saves to disk the pairwise combinations of subspecific origins of intervals.
         :param strain_name: string, name of the strain/sample
         :param chromosomes: dictionary with the intervals for each chromosome
-        :return: void
         """
         in_path = self.path if self.path else os.getcwd()
         num_intervals = sum([len(ints) for ints in chromosomes.itervalues()])
         intervals = np.empty(num_intervals, dtype=np.uint32)
-        source_array = np.empty(num_intervals, dtype=np.int8)
-        sources = np.empty([num_intervals, num_intervals], dtype=np.int8)
+        source_array = np.empty(num_intervals, dtype=np.uint8)
+        sources = np.empty([num_intervals, num_intervals], dtype=np.uint8)
         interval_num = 0
         for chromosome, interval_list in sorted(chromosomes.iteritems(), key=lambda x: x[0]):
             for species, end in interval_list:
                 intervals[interval_num] = self.genome_index(chromosome, end)
                 source_array[interval_num] = species
                 interval_num += 1
-        for interval_num in xrange(num_intervals):
-            sources[interval_num, :] = source_array
-        for interval_num in xrange(num_intervals):
-            sources[:, interval_num] = (source_array + sources[:, interval_num])
-        # prox::dist is upper triangle; dist::prox is lower triangle
-        sources_new = np.triu(sources) + -1 * np.tril(sources, k=-1).astype(np.int8)
+        for interval in xrange(num_intervals):
+            for prox_interval in xrange(interval):
+                sources[prox_interval, interval] = \
+                    subspecies.combine(source_array[prox_interval], source_array[interval])
+            for dist_interval in xrange(interval, num_intervals):
+                sources[dist_interval, interval] = \
+                    subspecies.combine(source_array[interval], source_array[dist_interval])
         np.save(os.path.join(in_path, strain_name + "_intervals.npy"), intervals)
-        np.save(os.path.join(in_path, strain_name + "_sources.npy"), sources_new)
+        np.save(os.path.join(in_path, strain_name + "_sources.npy"), sources)
 
     @classmethod
     def make_elementary_intervals(cls, interval_lists):
@@ -168,12 +162,13 @@ class TwoLocus:
         :param interval_lists: list of lists; elements of inner list are endpoints of genomic intervals
         :return: endpoints of the 'elementary intervals' induced by the input intervals
         """
+        # copy so we don't destroy the original lists
+        interval_lists = [[i for i in il] for il in interval_lists]
         elem_intervals = []
         while interval_lists:
             elem_intervals.append(min(intervals[0] for intervals in interval_lists))
             i = 0
             while i < len(interval_lists):
-                # for i, intervals in enumerate(interval_lists):
                 intervals = interval_lists[i]
                 if intervals[0] == elem_intervals[-1]:
                     intervals.pop(0)
@@ -183,7 +178,7 @@ class TwoLocus:
                     i += 1
         return elem_intervals
 
-    def calculate_pairwise_frequencies(self, strain_names=None, verbose=False):
+    def pairwise_frequencies(self, strain_names=None, include_unknown=False, verbose=False):
         """ For every locus pair and every label pair, count the number of strains which have those
         labels at those pairs of loci.
         :param strain_names: list of strain names to analyze (must be a subset of the output from preprocess())
@@ -191,14 +186,12 @@ class TwoLocus:
         """
         if verbose:
             logging.basicConfig(level=logging.INFO)
-        logging.info('Loading intervals')
+        logging.info('Loading intervals...')
 
-        in_path = self.path if self.path else os.getcwd()
+        in_path = self.path
         interval_lists = []
-        interval_dict = {}
         for strain_name in strain_names:
             interval_lists.append(list(np.load(os.path.join(in_path, strain_name + "_intervals.npy"))))
-            interval_dict[strain_name] = np.copy(interval_lists[-1])
 
         # compute elementary intervals
         logging.info("Computing elementary intervals...")
@@ -209,18 +202,14 @@ class TwoLocus:
         # elementary intervals are along the axes
         # Each element contains the number of samples that have that matrix's combo at that pair of intervals
         source_counts = {}
-        for species1, source1 in SPECIES_TO_INT.iteritems():
-            for species2, source2 in SPECIES_TO_INT.iteritems():
-                source_counts[source1 + source2] = np.zeros([len(elem_intervals), len(elem_intervals)],
-                                                            dtype=np.int16)
-                source_counts[-1 * (source1 + source2)] = np.zeros([len(elem_intervals), len(elem_intervals)],
-                                                                   dtype=np.int16)
+        for combo in subspecies.iter_combos(include_unknown=include_unknown):
+                source_counts[combo] = np.zeros([len(elem_intervals), len(elem_intervals)], dtype=np.int16)
         # fill in matrices
         logging.info("Counting incidence of subspecies pairs...")
         for strain_name in strain_names:
             logging.info("\t-- %s", strain_name)
             start = clock()
-            intervals = interval_dict[strain_name]
+            intervals = interval_lists.pop(0)
             sources = np.load(os.path.join(in_path, strain_name + "_sources.npy"))
             # map this strain's intervals onto the elementary intervals
             breaks = np.searchsorted(elem_intervals, intervals)
@@ -246,8 +235,8 @@ class TwoLocus:
         # compute area of each cell in the interval grid
         intervals = np.array([0] + intervals, dtype=np.float32) / 1.0e6
         areas = np.zeros([len(intervals) - 1, len(intervals) - 1], dtype=np.float32)
-        for row in range(1, len(intervals)):
-            for col in range(row, len(intervals)):
+        for row in xrange(1, len(intervals)):
+            for col in xrange(row, len(intervals)):
                 areas[row - 1, col - 1] = (intervals[row] - intervals[row - 1]) * (intervals[col] - intervals[col - 1])
                 if col > row:
                     areas[col - 1, row - 1] = areas[row - 1, col - 1]
@@ -294,34 +283,27 @@ class TwoLocus:
         print 'Distal range: Chr %s:%d - Chr %s:%d'\
               % tuple(cp for cp in self.chrom_and_pos(mins[1]) + self.chrom_and_pos(maxes[1]))
         print source_counts
-        for species1, species1_int in SPECIES_TO_INT.iteritems():
-            for species2, species2_int in SPECIES_TO_INT.iteritems():
-                if species1_int + species2_int in source_counts:
-                    print species1, '+', species2, source_counts[species1_int + species2_int]
+        for combo in subspecies.iter_combos():
+                if combo in source_counts:
+                    print subspecies.to_string(combo), source_counts[combo]
 
 
 def main():
     """ Run some tests with a dummy file, overriding chromosome lengths locally for sake of testing. """
-    x = TwoLocus(chrom_sizes=[200000000] * len(CHROMO_TO_INT))
-    x.sources_at_point_pair(19, 3500000, 19, 10000000, ['CASTEiJ', 'AJ'])
-    exit()
+    # x = TwoLocus(chrom_sizes=[200000000] * len(CHROMO_TO_INT))
+    # x.sources_at_point_pair(19, 3500000, 19, 10000000, ['CASTEiJ', 'AJ'])
+    # exit()
 
     x = TwoLocus(chrom_sizes=[20e6, 20e6])
     x.preprocess(["test.csv"])
-    rez = x.calculate_pairwise_frequencies(["A"])
-
-    combos = OrderedDict()
-    for s1, i1 in SPECIES_TO_INT.iteritems():
-        for s2, i2 in SPECIES_TO_INT.iteritems():
-            combos[-1 * (i1 + i2)] = s1 + " :: " + s2
-            combos[i1 + i2] = s2 + " :: " + s1
+    rez = x.pairwise_frequencies(["A"], include_unknown=True)
 
     areas = x.calculate_genomic_area(rez[0], rez[1])
     total = 0.0
-    for code, combo in combos.iteritems():
-        if code in areas:
-            print "\t{:15s}({:4d}):{:1.5f}".format(combo, code, areas[code])
-            total += areas[code]
+
+    for combo in subspecies.iter_combos(include_unknown=True):
+        print "\t{:15s}({:4d}):{:1.5f}".format(subspecies.to_string(combo), combo, areas[combo])
+        total += areas[combo]
     print "\t{:21s}:{:1.5f}".format("Total", total)
 
     sys.exit(1)
