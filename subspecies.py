@@ -22,6 +22,7 @@ DOM = 0b001
 MUS = 0b010
 CAS = 0b100
 NONE = 0b1000
+NUM_SUBSPECIES = 3
 
 _SHIFT = 4
 _PROXIMAL_MASK = 0b111 << _SHIFT
@@ -118,16 +119,36 @@ def is_homo(combo):
     return ((combo >> _SHIFT) & _DISTAL_MASK) == (combo & _DISTAL_MASK)
 
 
-def known(combo):
+def is_known(combo):
     """ Checks to see if either origin of combo is unknown
     :param combo: int representation of origin combination
     :return: True if neither origin is unknown
-    >>> known(combine(DOM, CAS))
+    >>> is_known(combine(DOM, CAS))
     True
-    >>> known(combine(NONE, CAS))
+    >>> is_known(combine(NONE, CAS))
     False
     """
     return not combine(NONE, NONE) & combo
+
+
+def proximal(combo):
+    """ Returns the proximal subspecies from a combo
+    :param combo: int representation of origin combination
+    :return: int representation of the proximal origin
+    >>> proximal(combine(CAS, DOM)) == CAS
+    True
+    """
+    return (combo & _PROXIMAL_MASK) >> _SHIFT
+
+
+def distal(combo):
+    """ Returns the distal subspecies from a combo
+    :param combo: int representation of origin combination
+    :return: int representation of the distal origin
+    >>> distal(combine(CAS, DOM)) == DOM
+    True
+    """
+    return combo & _DISTAL_MASK
 
 
 if __name__ == '__main__':

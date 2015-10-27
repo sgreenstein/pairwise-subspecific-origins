@@ -15,6 +15,7 @@ import string
 import glob
 import logging
 import subspecies
+from scipy import stats
 
 from time import clock
 from collections import OrderedDict, Counter
@@ -178,11 +179,12 @@ class TwoLocus:
                     i += 1
         return elem_intervals
 
-    def pairwise_frequencies(self, strain_names=None, include_unknown=False, verbose=False):
+    def pairwise_frequencies(self, strain_names, include_unknown=False, verbose=False):
         """ For every locus pair and every label pair, count the number of strains which have those
         labels at those pairs of loci.
         :param strain_names: list of strain names to analyze (must be a subset of the output from preprocess())
-        :param verbose: spit out progress messages to stderr
+        :param verbose: log progress
+        :returns {strain combo: matrix of counts}, list of elementary interval ends
         """
         if verbose:
             logging.basicConfig(level=logging.INFO)
@@ -287,15 +289,52 @@ class TwoLocus:
                 if combo in source_counts:
                     print subspecies.to_string(combo), source_counts[combo]
 
+    def interlocus_dependence(self, strain_names):
+        """ Performs a chi square test to find interval pairs whose origins are interdependent
+        :param strain_names: list of strain names to analyze
+        :return: elementary intervals, matrix of chi square values, matrix of p values (both upper triangular)
+        """
+        combo_count_dict, intervals = self.pairwise_frequencies(strain_names)
+        # convert source_counts to matrix combo_counts
+        combo_counts = np.empty([len(intervals), len(intervals), subspecies.NUM_SUBSPECIES**2], dtype=np.uint16)
+        species_counts = np.zeros([len(intervals), subspecies.NUM_SUBSPECIES])
+        for i, prox_species in enumerate(subspecies.iter_subspecies()):
+            for j, dist_species in enumerate(subspecies.iter_subspecies()):
+                counts = combo_count_dict[subspecies.combine(prox_species, dist_species)]
+                species_counts[:, i] += np.diag(counts)
+                combo_counts[:, :, i*subspecies.NUM_SUBSPECIES + j] = counts
+        # compute expected combo frequencies from source frequencies
+        combo_expectations = np.zeros([len(intervals), len(intervals), subspecies.NUM_SUBSPECIES**2])
+        for i in xrange(subspecies.NUM_SUBSPECIES):
+            for j in xrange(subspecies.NUM_SUBSPECIES):
+                combo_expectations[:, :, i*subspecies.NUM_SUBSPECIES + j] +=\
+                    np.outer(species_counts[:, i], species_counts[:, j])
+        # normalize expectations using the actual total frequency
+        sums = np.sum(combo_counts, axis=2)
+        old_settings = np.seterr(invalid='ignore')  # ignore division by 0 errors for intervals with no assigned origin
+        for i in xrange(subspecies.NUM_SUBSPECIES**2):
+            combo_expectations[:, :, i] = np.true_divide(combo_expectations[:, :, i], sums)
+        np.seterr(**old_settings)
+        combo_expectations = np.nan_to_num(combo_expectations)
+        # do chi-square test
+        chi_sq = np.zeros_like(combo_expectations[:, :, 0])
+        p_values = np.ones_like(chi_sq)
+        for i in xrange(len(intervals)):
+            # only upper triangle is meaningful
+            for j in xrange(i+1, len(intervals)):
+                nonzero_expectations = np.where(combo_expectations[i, j])
+                chi_sq[i, j], p_values[i, j] = stats.chisquare(
+                    combo_counts[i, j][nonzero_expectations], combo_expectations[i, j][nonzero_expectations])
+        return intervals, chi_sq, p_values
+
 
 def main():
     """ Run some tests with a dummy file, overriding chromosome lengths locally for sake of testing. """
-    # x = TwoLocus(chrom_sizes=[200000000] * len(CHROMO_TO_INT))
-    # x.sources_at_point_pair(19, 3500000, 19, 10000000, ['CASTEiJ', 'AJ'])
-    # exit()
 
     x = TwoLocus(chrom_sizes=[20e6, 20e6])
-    x.preprocess(["test.csv"])
+    x.preprocess(["test2.csv"])
+    x.interlocus_dependence([chr(c) for c in xrange(ord('A'), ord('J')+1)])
+    exit()
     rez = x.pairwise_frequencies(["A"], include_unknown=True)
 
     areas = x.calculate_genomic_area(rez[0], rez[1])
