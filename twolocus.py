@@ -156,8 +156,8 @@ class TwoLocus:
         np.save(os.path.join(in_path, strain_name + "_intervals.npy"), intervals)
         np.save(os.path.join(in_path, strain_name + "_sources.npy"), sources)
 
-    @classmethod
-    def make_elementary_intervals(cls, interval_lists):
+    @staticmethod
+    def make_elementary_intervals(interval_lists):
         """ Given a list of lists of interval endpoints, find minimal set of intervals
         which can cover them all without breaking any in two.
         :param interval_lists: list of lists; elements of inner list are endpoints of genomic intervals
@@ -327,14 +327,74 @@ class TwoLocus:
                     combo_counts[i, j][nonzero_expectations], combo_expectations[i, j][nonzero_expectations])
         return intervals, chi_sq, p_values
 
+    @staticmethod
+    def _find_interval_bounds(intervals1, index1, intervals2, index2):
+        """
+        :param intervals1: list of interval ends
+        :param index1: index into intervals1
+        :param intervals2: list of interval ends
+        :param index2: index into intervals2
+        :return: start of proximal interval, end of distal interval
+        """
+        if intervals1[index1] < intervals2[index2]:
+            lo = 0 if index1 == 0 else intervals1[index1-1]
+            hi = intervals2[index2]
+        else:
+            lo = 0 if index2 == 0 else intervals2[index2-1]
+            hi = intervals1[index1]
+        return lo, hi
+
+    def unique_combos(self, strain_names1, strain_names2):
+        """ prints combinations at interval pairs that are unique to one set of samples
+        :param strain_names1: list of strain names in first set
+        :param strain_names2: list of strain names in second set
+        """
+        counts1, intervals1 = self.pairwise_frequencies(strain_names1)
+        counts2, intervals2 = self.pairwise_frequencies(strain_names2)
+        row1 = 0
+        row2 = 0
+        while row1 < len(intervals1) and row2 < len(intervals2):
+            # only do upper triangle
+            col1 = row1 + 1
+            col2 = row2 + 1
+            while col1 < len(intervals1) and col2 < len(intervals2):
+                for combo in subspecies.iter_combos():
+                    if counts1[combo][row1, col1] and not counts2[combo][row2, col2]:
+                        unique_set = '1'
+                    elif not counts1[combo][row1, col1] and counts2[combo][row2, col2]:
+                        unique_set = '2'
+                    else:
+                        unique_set = None
+                    if unique_set is not None:
+                        prox_interval = self._find_interval_bounds(intervals1, row1, intervals2, row2)
+                        dist_interval = self._find_interval_bounds(intervals1, col1, intervals2, col2)
+                        print subspecies.to_string(combo), 'in only set %s at (%d - %d) x (%d - %d)' \
+                                                           % (unique_set, prox_interval[0], prox_interval[1],
+                                                              dist_interval[0], dist_interval[1])
+                if intervals1[col1] < intervals2[col2]:
+                    col1 += 1
+                elif intervals1[col1] > intervals2[col2]:
+                    col2 += 1
+                else:
+                    col1 += 1
+                    col2 += 1
+            if intervals1[row1] < intervals2[row2]:
+                row1 += 1
+            elif intervals1[row1] > intervals2[row2]:
+                row2 += 1
+            else:
+                row1 += 1
+                row2 += 1
+
 
 def main():
     """ Run some tests with a dummy file, overriding chromosome lengths locally for sake of testing. """
 
     x = TwoLocus(chrom_sizes=[20e6, 20e6])
     x.preprocess(["test2.csv"])
-    x.interlocus_dependence([chr(c) for c in xrange(ord('A'), ord('J')+1)])
+    x.unique_combos(['A', 'B'], ['C'])
     exit()
+    x.interlocus_dependence([chr(c) for c in xrange(ord('A'), ord('J')+1)])
     rez = x.pairwise_frequencies(["A"], include_unknown=True)
 
     areas = x.calculate_genomic_area(rez[0], rez[1])
