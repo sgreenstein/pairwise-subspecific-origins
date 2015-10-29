@@ -78,7 +78,7 @@ def to_int(string):
     >>> to_int('dom') == DOM
     True
     """
-    return _subspecies_ints[_subspecies_names.index(string)]
+    return _subspecies_ints[_subspecies_names.index(string.lower())]
 
 
 def is_distal(subspecies, combo):

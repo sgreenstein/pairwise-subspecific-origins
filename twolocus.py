@@ -40,13 +40,15 @@ CHROMO_SIZES = [197195432, 181748087, 159599783, 155630120, 152537259,
 
 class TwoLocus:
     def __init__(self, in_path=None, chrom_sizes=None):
-        """ Load a databse of pairwise labels for a collection of samples.
+        """ Load a database of pairwise labels for a collection of samples.
         :param in_path: default path to database of pre-computed intervals
         """
+        self._sources_suffix = '_sources.npy'
+        self._intervals_suffix = '_intervals.npy'
         self.path = in_path if in_path else os.getcwd()
         self.available = self.list_available_strains()
         self.sizes = chrom_sizes if chrom_sizes else CHROMO_SIZES
-        self.offsets = np.cumsum([0] + chrom_sizes)
+        self.offsets = np.cumsum([0] + self.sizes)
 
     def genome_index(self, chromosome, position):
         """ Converts chromosome and position to a single position in a coordinate system that covers
@@ -76,11 +78,11 @@ class TwoLocus:
         """
         in_path = self.path if not in_path else in_path
         sources = []
-        for s in glob.glob(os.path.join(in_path, "*_sources.npy")):
-            sources.append(os.path.basename(s).replace("_sources.npy", ""))
+        for s in glob.glob(os.path.join(in_path, '*' + self._sources_suffix)):
+            sources.append(os.path.basename(s).replace(self._sources_suffix, ""))
         intervals = []
-        for s in glob.glob(os.path.join(in_path, "*_intervals.npy")):
-            intervals.append(os.path.basename(s).replace("_intervals.npy", ""))
+        for s in glob.glob(os.path.join(in_path, '*' + self._intervals_suffix)):
+            intervals.append(os.path.basename(s).replace(self._intervals_suffix, ""))
         avail = set(intervals) & set(sources)
         self.available = avail
         return avail
@@ -113,7 +115,7 @@ class TwoLocus:
         SUBSPECIES = 'subspecies'
         strains = {}
         for filename in file_list:
-            with open(filename) as csvfile:
+            with open(os.path.join(self.path, filename)) as csvfile:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
                     chromosomes = strains.setdefault(row[STRAIN], OrderedDict())
@@ -138,23 +140,15 @@ class TwoLocus:
         in_path = self.path if self.path else os.getcwd()
         num_intervals = sum([len(ints) for ints in chromosomes.itervalues()])
         intervals = np.empty(num_intervals, dtype=np.uint32)
-        source_array = np.empty(num_intervals, dtype=np.uint8)
-        sources = np.empty([num_intervals, num_intervals], dtype=np.uint8)
+        sources = np.empty(num_intervals, dtype=np.uint8)
         interval_num = 0
         for chromosome, interval_list in sorted(chromosomes.iteritems(), key=lambda x: x[0]):
             for species, end in interval_list:
                 intervals[interval_num] = self.genome_index(chromosome, end)
-                source_array[interval_num] = species
+                sources[interval_num] = species
                 interval_num += 1
-        for interval in xrange(num_intervals):
-            for prox_interval in xrange(interval):
-                sources[prox_interval, interval] = \
-                    subspecies.combine(source_array[prox_interval], source_array[interval])
-            for dist_interval in xrange(interval, num_intervals):
-                sources[dist_interval, interval] = \
-                    subspecies.combine(source_array[interval], source_array[dist_interval])
-        np.save(os.path.join(in_path, strain_name + "_intervals.npy"), intervals)
-        np.save(os.path.join(in_path, strain_name + "_sources.npy"), sources)
+        np.save(os.path.join(in_path, strain_name + self._intervals_suffix), intervals)
+        np.save(os.path.join(in_path, strain_name + self._sources_suffix), sources)
 
     @staticmethod
     def make_elementary_intervals(interval_lists):
@@ -193,7 +187,7 @@ class TwoLocus:
         in_path = self.path
         interval_lists = []
         for strain_name in strain_names:
-            interval_lists.append(list(np.load(os.path.join(in_path, strain_name + "_intervals.npy"))))
+            interval_lists.append(list(np.load(os.path.join(in_path, strain_name + self._intervals_suffix))))
 
         # compute elementary intervals
         logging.info("Computing elementary intervals...")
@@ -212,13 +206,13 @@ class TwoLocus:
             logging.info("\t-- %s", strain_name)
             start = clock()
             intervals = interval_lists.pop(0)
-            sources = np.load(os.path.join(in_path, strain_name + "_sources.npy"))
+            sources = np.load(os.path.join(in_path, strain_name + self._sources_suffix))
             # map this strain's intervals onto the elementary intervals
             breaks = np.searchsorted(elem_intervals, intervals)
             for row, row_end in enumerate(intervals):
                 row_ind = range(breaks[row], breaks[row] + 1)
                 for col, col_end in enumerate(intervals):
-                    source = sources[row, col]
+                    source = subspecies.combine(sources[row], sources[col])
                     col_ind = range(breaks[col], breaks[col] + 1)
                     if source in source_counts:
                         for i in col_ind:
@@ -279,7 +273,7 @@ class TwoLocus:
                     mins[loc_num] = max(mins[loc_num], intervals[i-1])
                 maxes[loc_num] = min(maxes[loc_num], intervals[i])
                 interval_indices[loc_num] = i
-            source_counts[sources[interval_indices[0], interval_indices[1]]] += 1
+            source_counts[subspecies.combine(sources[interval_indices[0]], sources[interval_indices[1]])] += 1
         print 'Proximal range: Chr %s:%d - Chr %s:%d'\
               % tuple(cp for cp in self.chrom_and_pos(mins[0]) + self.chrom_and_pos(maxes[0]))
         print 'Distal range: Chr %s:%d - Chr %s:%d'\
@@ -388,13 +382,19 @@ class TwoLocus:
 
 
 def main():
-    """ Run some tests with a dummy file, overriding chromosome lengths locally for sake of testing. """
-
+    """ Run some tests with a dummy file, overriding chromosome lengths locally for sake of testing.
+    """
+    tl = TwoLocus(in_path='/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
+    tl.preprocess(['subspecific_origins.csv'])
+    exit()
     x = TwoLocus(chrom_sizes=[20e6, 20e6])
     x.preprocess(["test2.csv"])
-    x.unique_combos(['A', 'B'], ['C'])
-    exit()
+    x.unique_combos(['A', 'B', 'D'], ['C', 'E'])
     x.interlocus_dependence([chr(c) for c in xrange(ord('A'), ord('J')+1)])
+    exit()
+
+    x = TwoLocus(chrom_sizes=[20e6, 20e6])
+    x.preprocess(["test.csv"])
     rez = x.pairwise_frequencies(["A"], include_unknown=True)
 
     areas = x.calculate_genomic_area(rez[0], rez[1])
