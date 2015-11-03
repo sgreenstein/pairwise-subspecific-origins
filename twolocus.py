@@ -15,6 +15,7 @@ import string
 import glob
 import logging
 import subspecies
+import pickle
 from scipy import stats
 
 from time import clock
@@ -43,12 +44,26 @@ class TwoLocus:
         """ Load a database of pairwise labels for a collection of samples.
         :param in_path: default path to database of pre-computed intervals
         """
-        self._sources_suffix = '_sources.npy'
-        self._intervals_suffix = '_intervals.npy'
-        self.path = in_path if in_path else os.getcwd()
-        self.available = self.list_available_strains()
-        self.sizes = chrom_sizes if chrom_sizes else CHROMO_SIZES
+        self.path = in_path or os.getcwd()
+        self._sample_dict_path = os.path.join(self.path, 'sample_dict.p')
+        with open(self._sample_dict_path, 'w+') as fp:
+            pickle.dump({}, fp)
+        self.sizes = chrom_sizes or CHROMO_SIZES
         self.offsets = np.cumsum([0] + self.sizes)
+
+    def load_sample_dict(self):
+        """ Loads dictionary from disk
+        :return: {sample name: (interval list, origin list)}
+        """
+        with open(self._sample_dict_path) as fp:
+            return pickle.load(fp)
+
+    def save_sample_dict(self, new_dict):
+        """ Saves an updated sample dictionary to disk
+        :param new_dict: {sample name: (interval list, origin list)}
+        """
+        with open(self._sample_dict_path, 'w+') as fp:
+            pickle.dump(new_dict, fp)
 
     def genome_index(self, chromosome, position):
         """ Converts chromosome and position to a single position in a coordinate system that covers
@@ -70,40 +85,24 @@ class TwoLocus:
             chromo_num += 1
         return INT_TO_CHROMO[chromo_num], index
 
-    def list_available_strains(self, in_path=None):
+    def list_available_strains(self):
         """ Given path to a databse of pre-computed subspecies origin intervals,
         list the strains that are available.
-        :param in_path: path to directory containing pre-computed intervals
         :return: list of available strains
         """
-        in_path = self.path if not in_path else in_path
-        sources = []
-        for s in glob.glob(os.path.join(in_path, '*' + self._sources_suffix)):
-            sources.append(os.path.basename(s).replace(self._sources_suffix, ""))
-        intervals = []
-        for s in glob.glob(os.path.join(in_path, '*' + self._intervals_suffix)):
-            intervals.append(os.path.basename(s).replace(self._intervals_suffix, ""))
-        avail = set(intervals) & set(sources)
-        self.available = avail
-        return avail
+        return [strain for strain in self.load_sample_dict()]
 
     def preprocess(self, file_list):
-        """ Creates the preprocessed matrix for each sample. Run once.
-        :param file_list: list of file names of csv files with subspecific origins
-        :return: list of the strain names that were processed
+        """ Parses and saves the subspecific origins
+        :param file_list: list of csv files with subspecific origin information
         """
-        strain_names = []
-        # remove chars from strain names that can't be in filenames (e.g. /)
-        valid_chars = "-_.()%s%s" % (string.ascii_letters, string.digits)
+        sample_dict = self.load_sample_dict()
         for strain_name, chromosomes in self.parse_csvs(file_list).iteritems():
-            strain_name = ''.join(c for c in strain_name if c in valid_chars)
-            self.make_incidence_matrix(strain_name, chromosomes)
-            strain_names.append(strain_name)
-        self.available = self.available | set(strain_names)
-        return strain_names
+            sample_dict[strain_name] = self.intervals_and_sources(chromosomes)
+        self.save_sample_dict(sample_dict)
 
     def parse_csvs(self, file_list):
-        """ Parses downloaded haplotypes from the Mouse Phylogeny Viewer.
+        """ Parses downloaded haplotypes from the Mouse Phylogeny Viewer
         :param file_list: list of filenames
         :return: dictionary of {strain name: {chromosome number: list of (subspecies id, interval end)}}
         """
@@ -113,10 +112,16 @@ class TwoLocus:
         START = 'start'
         END = 'end'
         SUBSPECIES = 'subspecies'
+        COLOR = 'color'
+        COLOR_TO_NAME = ['mus', 'cas', 'dom']
         strains = {}
         for filename in file_list:
             with open(os.path.join(self.path, filename)) as csvfile:
                 reader = csv.DictReader(csvfile)
+                if SUBSPECIES in reader.fieldnames:
+                    def subspec_int(r): return subspecies.to_int(r[SUBSPECIES])
+                else:
+                    def subspec_int(r): return subspecies.to_int(COLOR_TO_NAME[np.argmax([int(v) for v in r[COLOR].split(' ')])])
                 for row in reader:
                     chromosomes = strains.setdefault(row[STRAIN], OrderedDict())
                     intervals = chromosomes.setdefault(CHROMO_TO_INT[row[CHROMOSOME]], [])
@@ -124,7 +129,7 @@ class TwoLocus:
                     # add null interval if there is a gap between intervals with assigned subspecies
                     if not int(row[START]) - 1 <= lastEnd <= int(row[START]) + 1:
                         intervals.append((subspecies.NONE, int(row[START])))
-                    intervals.append((subspecies.to_int(row[SUBSPECIES]), int(row[END])))
+                    intervals.append((subspec_int(row), int(row[END])))
         # add null interval to end of each chromosome
         for chromosomes in strains.itervalues():
             for chromosome, intervals in chromosomes.iteritems():
@@ -132,12 +137,11 @@ class TwoLocus:
                     intervals.append((subspecies.NONE, self.sizes[chromosome - 1]))
         return strains
 
-    def make_incidence_matrix(self, strain_name, chromosomes):
-        """ Constructs and saves to disk the pairwise combinations of subspecific origins of intervals.
-        :param strain_name: string, name of the strain/sample
-        :param chromosomes: dictionary with the intervals for each chromosome
+    def intervals_and_sources(self, chromosomes):
+        """ Converts dictionary to lists of intervals and sources
+        :param chromosomes: dictionary of {strain name: {chromosome number: list of (subspecies id, interval end)}}
+        :return: list of ends of intervals, list of int representations of sources
         """
-        in_path = self.path if self.path else os.getcwd()
         num_intervals = sum([len(ints) for ints in chromosomes.itervalues()])
         intervals = np.empty(num_intervals, dtype=np.uint32)
         sources = np.empty(num_intervals, dtype=np.uint8)
@@ -147,8 +151,7 @@ class TwoLocus:
                 intervals[interval_num] = self.genome_index(chromosome, end)
                 sources[interval_num] = species
                 interval_num += 1
-        np.save(os.path.join(in_path, strain_name + self._intervals_suffix), intervals)
-        np.save(os.path.join(in_path, strain_name + self._sources_suffix), sources)
+        return intervals, sources
 
     @staticmethod
     def make_elementary_intervals(interval_lists):
@@ -184,10 +187,10 @@ class TwoLocus:
             logging.basicConfig(level=logging.INFO)
         logging.info('Loading intervals...')
 
-        in_path = self.path
         interval_lists = []
+        strain_dict = self.load_sample_dict()
         for strain_name in strain_names:
-            interval_lists.append(list(np.load(os.path.join(in_path, strain_name + self._intervals_suffix))))
+            interval_lists.append(list(strain_dict[strain_name][0]))
 
         # compute elementary intervals
         logging.info("Computing elementary intervals...")
@@ -205,8 +208,7 @@ class TwoLocus:
         for strain_name in strain_names:
             logging.info("\t-- %s", strain_name)
             start = clock()
-            intervals = interval_lists.pop(0)
-            sources = np.load(os.path.join(in_path, strain_name + self._sources_suffix))
+            intervals, sources = strain_dict[strain_name]
             # map this strain's intervals onto the elementary intervals
             breaks = np.searchsorted(elem_intervals, intervals)
             for row, row_end in enumerate(intervals):
