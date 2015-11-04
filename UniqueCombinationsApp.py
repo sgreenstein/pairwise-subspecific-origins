@@ -34,6 +34,7 @@ def indexPage(form):
     panel.script(type="text/javascript")
     panel.add("""$(".chosen").chosen()""")
     panel.script.close()
+    helper.select_all_buttons(panel)
     panel.br()
     panel.input(type="hidden", name="target", value="%s.uniqueCombos" % this_file)
     panel.input(type="submit", name="submit", value="Submit")
