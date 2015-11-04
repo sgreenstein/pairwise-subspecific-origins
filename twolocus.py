@@ -22,7 +22,7 @@ from time import clock
 from collections import OrderedDict, Counter
 
 # integer representations of chromosomes
-CHROMO_TO_INT = OrderedDict()
+CHROMO_TO_INT = {}
 for x in xrange(1, 21):
     CHROMO_TO_INT[str(x)] = x
 # CHROMO_TO_INT['X'] = 20
@@ -46,10 +46,11 @@ class TwoLocus:
         """
         self.path = in_path or os.getcwd()
         self._sample_dict_path = os.path.join(self.path, 'sample_dict.p')
-        with open(self._sample_dict_path, 'w+') as fp:
-            pickle.dump({}, fp)
+        if not os.path.exists(self._sample_dict_path):
+            with open(self._sample_dict_path, 'w+') as fp:
+                pickle.dump({}, fp)
         self.sizes = chrom_sizes or CHROMO_SIZES
-        self.offsets = np.cumsum([0] + self.sizes)
+        self.offsets = np.cumsum([0] + self.sizes, dtype=int)
 
     def load_sample_dict(self):
         """ Loads dictionary from disk
@@ -68,10 +69,18 @@ class TwoLocus:
     def genome_index(self, chromosome, position):
         """ Converts chromosome and position to a single position in a coordinate system that covers
         the whole genome.  Chromosomes are just concatenated in karyotype order.
-        :param chromosome: integer representation of chromosome
+        :param chromosome: integer or string representation of chromosome
         :param position: position on chromosome
         :return: integer denoting chromosome and position
+        :raises: ValueError if position is invalid
         """
+        if type(chromosome) is str:
+            try:
+                chromosome = CHROMO_TO_INT[chromosome]
+            except KeyError:
+                raise ValueError('Invalid chromosome')
+        if position > self.offsets[chromosome]:
+            raise ValueError('Position exceeds chromosome length')
         return self.offsets[chromosome - 1] + position
 
     def chrom_and_pos(self, index):
@@ -80,8 +89,8 @@ class TwoLocus:
         :return: string representation of chromosome, position on chromosome
         """
         chromo_num = 1
-        while index > self.sizes[chromo_num]:
-            index -= self.sizes[chromo_num]
+        while index > self.sizes[chromo_num-1]:
+            index -= self.sizes[chromo_num-1]
             chromo_num += 1
         return INT_TO_CHROMO[chromo_num], index
 
@@ -254,20 +263,20 @@ class TwoLocus:
         :param pos2: position of another locus
         :param strain_names: list of strain names to analyze
         """
-        coords = [self.genome_index(CHROMO_TO_INT[str(chrom1)], pos1), self.genome_index(CHROMO_TO_INT[str(chrom2)], pos2)]
+        coords = [self.genome_index(chrom1, pos1), self.genome_index(chrom2, pos2)]
         mins = [0] * 2
         maxes = [np.sum(self.sizes)] * 2
         coords.sort()
         source_counts = Counter()
+        sample_dict = self.load_sample_dict()
+        output = {}
         for strain_name in strain_names:
-            intervals = np.load(strain_name + '_intervals.npy')
-            sources = np.load(strain_name + '_sources.npy')
-            print intervals
-            print sources
+            intervals = sample_dict[strain_name][0]
+            sources = sample_dict[strain_name][1]
             # find interval containing each location
             i = 0
             interval_indices = [None, None]
-            print 'coords', coords
+            # output['coords'] = coords
             for loc_num in xrange(2):
                 while intervals[i] < coords[loc_num]:
                     i += 1
@@ -276,14 +285,17 @@ class TwoLocus:
                 maxes[loc_num] = min(maxes[loc_num], intervals[i])
                 interval_indices[loc_num] = i
             source_counts[subspecies.combine(sources[interval_indices[0]], sources[interval_indices[1]])] += 1
-        print 'Proximal range: Chr %s:%d - Chr %s:%d'\
-              % tuple(cp for cp in self.chrom_and_pos(mins[0]) + self.chrom_and_pos(maxes[0]))
-        print 'Distal range: Chr %s:%d - Chr %s:%d'\
-              % tuple(cp for cp in self.chrom_and_pos(mins[1]) + self.chrom_and_pos(maxes[1]))
-        print source_counts
-        for combo in subspecies.iter_combos():
-                if combo in source_counts:
-                    print subspecies.to_string(combo), source_counts[combo]
+        for range_num, range_name in enumerate(['Proximal', 'Distal']):
+            output[range_name] = {}
+            for position_type, position_name in [(mins, 'Start'), (maxes, 'End')]:
+                chrom, pos = self.chrom_and_pos(position_type[range_num])
+                output[range_name][position_name] = {'Chromosome': chrom, 'Position': pos}
+        for proximal in subspecies.iter_subspecies():
+            for distal in subspecies.iter_subspecies():
+                if subspecies.combine(proximal, distal) in source_counts:
+                    output.setdefault(subspecies.to_string(proximal), {})[subspecies.to_string(distal)] =\
+                        source_counts[subspecies.combine(proximal, distal)]
+        return output
 
     def interlocus_dependence(self, strain_names):
         """ Performs a chi square test to find interval pairs whose origins are interdependent
@@ -386,16 +398,17 @@ class TwoLocus:
 def main():
     """ Run some tests with a dummy file, overriding chromosome lengths locally for sake of testing.
     """
-    tl = TwoLocus(in_path='/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
-    tl.preprocess(['subspecific_origins.csv'])
-    exit()
+    # tl = TwoLocus(in_path='/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
+    # tl.preprocess(['subspecific_origins.csv'])
+    # exit()
     x = TwoLocus(chrom_sizes=[20e6, 20e6])
     x.preprocess(["test2.csv"])
     x.unique_combos(['A', 'B', 'D'], ['C', 'E'])
-    x.interlocus_dependence([chr(c) for c in xrange(ord('A'), ord('J')+1)])
+    print type(x.sources_at_point_pair('1', 1, '1', 10000000, ['A'])['Distal']['Start']['Position'])
+    # x.interlocus_dependence([chr(c) for c in xrange(ord('A'), ord('J')+1)])
     exit()
 
-    x = TwoLocus(chrom_sizes=[20e6, 20e6])
+    x = TwoLocus(chrom_sizes=[20 * 10**6, 20 * 10**6])
     x.preprocess(["test.csv"])
     rez = x.pairwise_frequencies(["A"], include_unknown=True)
 
