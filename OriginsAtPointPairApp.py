@@ -13,20 +13,6 @@ if __name__ != '__main__':
 this_file = os.path.basename(__file__).replace('App.pyc', '')
 
 
-class NumpyEncoder(json.JSONEncoder):
-    """ Converts numpy dtypes to the native python equivalent to enable json serialization
-    """
-    def default(self, o):
-        if isinstance(o, np.integer):
-            return int(o)
-        elif isinstance(o, np.floating):
-            return float(o)
-        elif isinstance(o, np.ndarray):
-            return o.tolist()
-        else:
-            return super(NumpyEncoder, self).default(o)
-
-
 def parse_position(string):
     """
     >>> parse_position('3,000,000')
@@ -90,7 +76,7 @@ def indexPage(form):
     panel.br()
     panel.input(type="hidden", name="target", value="%s.countMatrix" % this_file)
     panel.input(type="submit", name="submit", value="Submit")
-    panel.div.close()
+    panel.div.close()  # control group
     panel.form.close()
     panel.div.close()
     return panel
@@ -116,7 +102,7 @@ def countMatrixResponse(form):
         positions.append(parse_position(form.getvalue('pos' + str(pos_num+1))))
         chroms.append(form.getvalue('chrom' + str(pos_num+1)))
     print json.dumps(tl.sources_at_point_pair(chroms[0], positions[0], chroms[1], positions[1], strains),
-                     cls=NumpyEncoder)
+                     cls=helper.NumpyEncoder)
     return None
 
 

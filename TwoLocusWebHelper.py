@@ -1,3 +1,6 @@
+import numpy as np
+import json
+
 STRAIN_SETS = [
     ['Classical', 'Classical',
      ["129P1/ReJ", "129P3/J", "129S1SvlmJ", "129S6", "129T2/SvEmsJ", "129X1/SvJ", "A/J", "A/WySnJ", "AEJ/GnLeJ",
@@ -31,6 +34,20 @@ STRAIN_SETS = [
 ]
 
 
+class NumpyEncoder(json.JSONEncoder):
+    """ Converts numpy dtypes to the native python equivalent to enable json serialization
+    """
+    def default(self, o):
+        if isinstance(o, np.integer):
+            return int(o)
+        elif isinstance(o, np.floating):
+            return float(o)
+        elif isinstance(o, np.ndarray):
+            return o.tolist()
+        else:
+            return super(NumpyEncoder, self).default(o)
+
+
 def open_control(panel, name):
     panel.div(_class="control-group")
     panel.label(_class="control-label")
@@ -55,17 +72,16 @@ def link_css_and_js(panel):
     panel.link(rel="stylesheet", type="text/css", href="../sgreens/pairwise_origins/all.css")
 
 
-def strain_set_selector(panel, avail_strains):
+def strain_set_selector(panel, avail_strains, set_id=''):
     for text, value, strains in STRAIN_SETS:
         panel.br()
         panel.label(_class="control-label")
         panel.add(text)
         panel.label.close()
         panel.div(_class="controls")
-        panel.add("""<select data-placeholder=%s name=%s multiple="multiple" class="chosen">""" % (text, value))
+        panel.add("""<select data-placeholder=%s name=%s multiple="multiple" class="chosen">""" % (text, value + set_id))
         for strain in strains:
             if strain in avail_strains:
                 panel.option(strain, value=strain)
         panel.add('</select>')
         panel.div.close()
-    panel.div.close()  # control-group

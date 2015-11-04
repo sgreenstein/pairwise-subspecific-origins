@@ -52,6 +52,14 @@ class TwoLocus:
         self.sizes = chrom_sizes or CHROMO_SIZES
         self.offsets = np.cumsum([0] + self.sizes, dtype=int)
 
+    def genome_index_to_dict(self, index):
+        """ Converts a genome position to a dictionary of chromosome and position
+        :param index: position in genome according to our coordinates
+        :return: {'Chromosome': chrom_num, 'Position': pos_on_chrom}
+        """
+        chrom_pos = self.chrom_and_pos(index)
+        return {'Chromosome': chrom_pos[0], 'Position': chrom_pos[1]}
+
     def load_sample_dict(self):
         """ Loads dictionary from disk
         :return: {sample name: (interval list, origin list)}
@@ -285,11 +293,8 @@ class TwoLocus:
                 maxes[loc_num] = min(maxes[loc_num], intervals[i])
                 interval_indices[loc_num] = i
             source_counts[subspecies.combine(sources[interval_indices[0]], sources[interval_indices[1]])] += 1
-        for range_num, range_name in enumerate(['Proximal', 'Distal']):
-            output[range_name] = {}
-            for position_type, position_name in [(mins, 'Start'), (maxes, 'End')]:
-                chrom, pos = self.chrom_and_pos(position_type[range_num])
-                output[range_name][position_name] = {'Chromosome': chrom, 'Position': pos}
+        output['Proximal'] = [self.genome_index_to_dict(mins[0]), self.genome_index_to_dict(maxes[0])]
+        output['Distal'] = [self.genome_index_to_dict(mins[1]), self.genome_index_to_dict(maxes[1])]
         for proximal in subspecies.iter_subspecies():
             for distal in subspecies.iter_subspecies():
                 if subspecies.combine(proximal, distal) in source_counts:
@@ -353,14 +358,16 @@ class TwoLocus:
         return lo, hi
 
     def unique_combos(self, strain_names1, strain_names2):
-        """ prints combinations at interval pairs that are unique to one set of samples
+        """ finds combinations at interval pairs that are unique to one set of samples
         :param strain_names1: list of strain names in first set
         :param strain_names2: list of strain names in second set
+        :return: json object containing the interval pairs unique to each set of samples
         """
         counts1, intervals1 = self.pairwise_frequencies(strain_names1)
         counts2, intervals2 = self.pairwise_frequencies(strain_names2)
         row1 = 0
         row2 = 0
+        output = {}
         while row1 < len(intervals1) and row2 < len(intervals2):
             # only do upper triangle
             col1 = row1 + 1
@@ -368,17 +375,24 @@ class TwoLocus:
             while col1 < len(intervals1) and col2 < len(intervals2):
                 for combo in subspecies.iter_combos():
                     if counts1[combo][row1, col1] and not counts2[combo][row2, col2]:
-                        unique_set = '1'
+                        unique_dict = output.setdefault('A', {})
                     elif not counts1[combo][row1, col1] and counts2[combo][row2, col2]:
-                        unique_set = '2'
+                        unique_dict = output.setdefault('B', {})
                     else:
-                        unique_set = None
-                    if unique_set is not None:
+                        unique_dict = None
+                    if unique_dict is not None:
                         prox_interval = self._find_interval_bounds(intervals1, row1, intervals2, row2)
                         dist_interval = self._find_interval_bounds(intervals1, col1, intervals2, col2)
-                        print subspecies.to_string(combo), 'in only set %s at (%d - %d) x (%d - %d)' \
-                                                           % (unique_set, prox_interval[0], prox_interval[1],
-                                                              dist_interval[0], dist_interval[1])
+                        unique_dict.setdefault(subspecies.to_string(combo), []).append({
+                            'Proximal': [
+                                self.genome_index_to_dict(prox_interval[0]),
+                                self.genome_index_to_dict(prox_interval[1])
+                            ],
+                            'Distal': [
+                                self.genome_index_to_dict(dist_interval[0]),
+                                self.genome_index_to_dict(dist_interval[1])
+                            ]
+                        })
                 if intervals1[col1] < intervals2[col2]:
                     col1 += 1
                 elif intervals1[col1] > intervals2[col2]:
@@ -393,6 +407,7 @@ class TwoLocus:
             else:
                 row1 += 1
                 row2 += 1
+        return output
 
 
 def main():
