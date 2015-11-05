@@ -56,7 +56,7 @@ def indexPage(form):
     panel.form(_class="form-horizontal", action="", method="POST", enctype="multipart/form-data")
     panel.div(_class="control-group")
     panel.h3('Set of Samples')
-    helper.strain_set_selector(panel, tl.list_available_strains())
+    helper.strain_set_selector(panel, tl)
     for pos_num in ('1', '2'):
         panel.h3('Position ' + pos_num)
         helper.open_control(panel, 'Chromosome')

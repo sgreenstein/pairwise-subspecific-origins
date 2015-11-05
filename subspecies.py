@@ -44,21 +44,31 @@ for prox_int, prox_name in zip(_subspecies_ints, _subspecies_names):
     for dist_int, dist_name in zip(_subspecies_ints, _subspecies_names):
         _int_to_str[combine(prox_int, dist_int)] = prox_name + ' :: ' + dist_name
 _str_to_int = {v: k for k, v in _int_to_str.iteritems()}
+_combos = []
+_combos_with_none = []
 
 
 def iter_subspecies(include_unknown=False):
     """ an iterator for all subspecies (does not include unknown)
     """
-    for subspecies in _subspecies_ints[:len(_subspecies_ints) - (not include_unknown)]:
-        yield subspecies
+    return _subspecies_ints[:len(_subspecies_ints) - (not include_unknown)]
+
+for proximal in iter_subspecies(False):
+    for distal in iter_subspecies(False):
+        _combos.append(combine(proximal, distal))
+
+for proximal in iter_subspecies(True):
+    for distal in iter_subspecies(True):
+        _combos_with_none.append(combine(proximal, distal))
 
 
 def iter_combos(include_unknown=False):
     """ an iterator for all combinations of subspecies (does not include unknown)
     """
-    for proximal in _subspecies_ints[:len(_subspecies_ints) - (not include_unknown)]:
-        for distal in _subspecies_ints[:len(_subspecies_ints) - (not include_unknown)]:
-            yield combine(proximal, distal)
+    if include_unknown:
+        return _combos_with_none
+    else:
+        return _combos
 
 
 def to_string(integer):
