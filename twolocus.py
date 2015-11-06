@@ -195,7 +195,27 @@ class TwoLocus:
                     i += 1
         return elem_intervals
 
-    @profile
+    def build_pairwise_matrix(self, strain_names, elem_intervals):
+        # 3d matrix. First index is combo, remaining 2d matrices are counts for pairwise intervals
+        source_counts = np.zeros([subspecies.NUM_SUBSPECIES**2, len(elem_intervals), len(elem_intervals)], dtype=np.int16)
+        for strain_name in strain_names:
+            intervals, sources = self.sample_dict[strain_name]
+            # map this strain's intervals onto the elementary intervals
+            breaks = np.searchsorted(elem_intervals, intervals)
+            for row, row_end in enumerate(intervals):
+                row_ind = range(breaks[row], breaks[row] + 1)
+                if not subspecies.is_known(sources[row]):
+                    continue
+                for col, col_end in enumerate(intervals):
+                    if not subspecies.is_known(sources[col]):
+                        continue
+                    source = subspecies.combine(sources[row], sources[col])
+                    col_ind = range(breaks[col], breaks[col] + 1)
+                    for i in col_ind:
+                        source_counts[subspecies.to_ordinal(source), row_ind, i] += 1
+        return source_counts
+
+    # @profile
     def pairwise_frequencies(self, strain_names, include_unknown=False, verbose=False):
         """ For every locus pair and every label pair, count the number of strains which have those
         labels at those pairs of loci.
@@ -216,32 +236,7 @@ class TwoLocus:
         elem_intervals = self.make_elementary_intervals(interval_lists)
         logging.info("%d total intervals", len(elem_intervals))
 
-        # dictionary of matrices, one for each combo of two sources. i.e. 1 matrix has the counts for the dom-mus combo
-        # elementary intervals are along the axes
-        # Each element contains the number of samples that have that matrix's combo at that pair of intervals
-        source_counts = {}
-        for combo in subspecies.iter_combos(include_unknown=include_unknown):
-            source_counts[combo] = np.zeros([len(elem_intervals), len(elem_intervals)], dtype=np.int16)
-        # fill in matrices
-        logging.info("Counting incidence of subspecies pairs...")
-        for strain_name in strain_names:
-            logging.info("\t-- %s", strain_name)
-            start = clock()
-            intervals, sources = self.sample_dict[strain_name]
-            # map this strain's intervals onto the elementary intervals
-            breaks = np.searchsorted(elem_intervals, intervals)
-            for row, row_end in enumerate(intervals):
-                row_ind = range(breaks[row], breaks[row] + 1)
-                for col, col_end in enumerate(intervals):
-                    source = subspecies.combine(sources[row], sources[col])
-                    col_ind = range(breaks[col], breaks[col] + 1)
-                    if source in source_counts:
-                        for i in col_ind:
-                            source_counts[source][row_ind, i] += 1
-            end = clock()
-            logging.info("\t\t... in %.2f seconds", end - start)
-
-        return source_counts, elem_intervals
+        return self.build_pairwise_matrix(strain_names, elem_intervals), elem_intervals
 
     def calculate_genomic_area(self, counts, intervals):
         """
@@ -260,9 +255,9 @@ class TwoLocus:
 
         areas_masked = OrderedDict()
         denom = np.sum(np.array(self.sizes) / 1.0e6) ** 2
-        for combo, vals in counts.iteritems():
+        for combo, vals in enumerate(counts):
             factor = 1
-            areas_masked.update({combo: np.sum((vals > 0) * areas * factor) / denom})
+            areas_masked.update({str(subspecies.to_string(combo, True)): np.sum((vals > 0) * areas * factor) / denom})
         return areas_masked
 
     def sources_at_point_pair(self, chrom1, pos1, chrom2, pos2, strain_names):
@@ -358,57 +353,38 @@ class TwoLocus:
             hi = intervals1[index1]
         return lo, hi
 
-    @profile
+    # @profile
     def unique_combos(self, strain_names1, strain_names2):
         """ finds combinations at interval pairs that are unique to one set of samples
         :param strain_names1: list of strain names in first set
         :param strain_names2: list of strain names in second set
         :return: json object containing the interval pairs unique to each set of samples
         """
-        counts1, intervals1 = self.pairwise_frequencies(strain_names1)
-        counts2, intervals2 = self.pairwise_frequencies(strain_names2)
-        row1 = 0
-        row2 = 0
+        elem_intervals = self.make_elementary_intervals([self.sample_dict[sn][0] for sn in strain_names1 + strain_names2])
+        sources1 = self.build_pairwise_matrix(strain_names1, elem_intervals)
+        sources2 = self.build_pairwise_matrix(strain_names2, elem_intervals)
         output = {}
-        while row1 < len(intervals1) and row2 < len(intervals2):
-            # only do upper triangle
-            col1 = row1 + 1
-            col2 = row2 + 1
-            while col1 < len(intervals1) and col2 < len(intervals2):
-                for combo in subspecies.iter_combos():
-                    if counts1[combo][row1, col1] and not counts2[combo][row2, col2]:
-                        unique_dict = output.setdefault('A', {})
-                    elif not counts1[combo][row1, col1] and counts2[combo][row2, col2]:
-                        unique_dict = output.setdefault('B', {})
-                    else:
-                        unique_dict = None
-                    if unique_dict is not None:
-                        prox_interval = self._find_interval_bounds(intervals1, row1, intervals2, row2)
-                        dist_interval = self._find_interval_bounds(intervals1, col1, intervals2, col2)
-                        unique_dict.setdefault(subspecies.to_string(combo), []).append({
-                            'Proximal': [
-                                self.genome_index_to_dict(prox_interval[0]),
-                                self.genome_index_to_dict(prox_interval[1])
-                            ],
-                            'Distal': [
-                                self.genome_index_to_dict(dist_interval[0]),
-                                self.genome_index_to_dict(dist_interval[1])
-                            ]
-                        })
-                if intervals1[col1] < intervals2[col2]:
-                    col1 += 1
-                elif intervals1[col1] > intervals2[col2]:
-                    col2 += 1
-                else:
-                    col1 += 1
-                    col2 += 1
-            if intervals1[row1] < intervals2[row2]:
-                row1 += 1
-            elif intervals1[row1] > intervals2[row2]:
-                row2 += 1
-            else:
-                row1 += 1
-                row2 += 1
+        for set_name, set_uniquities in [
+            ('A', np.logical_and(sources1, np.logical_not(sources2))),
+            ('B', np.logical_and(sources2, np.logical_not(sources1)))
+        ]:
+            output[set_name] = {}
+            for combo in xrange(subspecies.NUM_SUBSPECIES**2):
+                combo_uniquities = np.where(set_uniquities[combo])
+                combo_names = subspecies.to_string(combo, True)
+                output[set_name].setdefault(combo_names[0], {})[combo_names[1]] = [
+                    [
+                        [  # proximal interval
+                            self.genome_index_to_dict(elem_intervals[i-1]),  # interval start
+                            self.genome_index_to_dict(elem_intervals[i])   # interval end
+                        ],
+                        [  # distal interval
+                            self.genome_index_to_dict(elem_intervals[j-1]),  # interval start
+                            self.genome_index_to_dict(elem_intervals[j])   # interval end
+                        ]
+                    ]
+                    for i, j in zip(combo_uniquities[0], combo_uniquities[1])
+                ]
         return output
 
 
@@ -439,25 +415,25 @@ def main():
                      # 'STLT', 'STRA', 'STRB', 'STUF', 'STUP', 'STUS', 'TIRANO/EiJ', 'WLA', 'WMP', 'WSB/EiJ',
                      'ZALENDE/EiJ'] if tl.is_available(s)]
     tl.unique_combos(classical, wild_derived)
-    # tl.preprocess(['subspecific_origins.csv'])
+    tl.preprocess(['subspecific_origins.csv'])
     exit()
     x = TwoLocus(chrom_sizes=[20e6, 20e6])
     x.preprocess(["test2.csv"])
     x.unique_combos(['A', 'B', 'D'], ['C', 'E'])
-    print type(x.sources_at_point_pair('1', 1, '1', 10000000, ['A'])['Distal']['Start']['Position'])
+    x.sources_at_point_pair('1', 1, '1', 10000000, ['A'])
     # x.interlocus_dependence([chr(c) for c in xrange(ord('A'), ord('J')+1)])
-    exit()
+    # exit()
 
     x = TwoLocus(chrom_sizes=[20 * 10 ** 6, 20 * 10 ** 6])
     x.preprocess(["test.csv"])
-    rez = x.pairwise_frequencies(["A"], include_unknown=True)
+    rez = x.pairwise_frequencies(["A"])
 
     areas = x.calculate_genomic_area(rez[0], rez[1])
     total = 0.0
 
-    for combo in subspecies.iter_combos(include_unknown=True):
-        print "\t{:15s}({:4d}):{:1.5f}".format(subspecies.to_string(combo), combo, areas[combo])
-        total += areas[combo]
+    for combo in subspecies.iter_combos():
+        print "\t{:15s}({:4d}):{:1.5f}".format(subspecies.to_string(combo), combo, areas[str(subspecies.to_string(combo))])
+        total += areas[str(subspecies.to_string(combo))]
     print "\t{:21s}:{:1.5f}".format("Total", total)
 
     sys.exit(1)

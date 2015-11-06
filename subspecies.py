@@ -42,7 +42,7 @@ _subspecies_names = ['dom', 'mus', 'cas', '???']
 _int_to_str = {i: s for i, s in zip(_subspecies_ints, _subspecies_names)}
 for prox_int, prox_name in zip(_subspecies_ints, _subspecies_names):
     for dist_int, dist_name in zip(_subspecies_ints, _subspecies_names):
-        _int_to_str[combine(prox_int, dist_int)] = prox_name + ' :: ' + dist_name
+        _int_to_str[combine(prox_int, dist_int)] = (prox_name, dist_name)
 _str_to_int = {v: k for k, v in _int_to_str.iteritems()}
 _combos = []
 _combos_with_none = []
@@ -70,14 +70,26 @@ def iter_combos(include_unknown=False):
     else:
         return _combos
 
+combo_nums = {}
+combo_names = []
+for n, c in enumerate(iter_combos()):
+    combo_nums[c] = n
+    combo_names.append(_int_to_str[c])
 
-def to_string(integer):
+
+def to_ordinal(combo):
+    return combo_nums[combo]
+
+
+def to_string(integer, ordinal=False):
     """
     :param integer: int representation of subspecies
     :return: subspecies name
     >>> to_string(DOM) == 'dom'
     True
     """
+    if ordinal:
+        return combo_names[integer]
     return _int_to_str[integer]
 
 
