@@ -72,7 +72,7 @@ def link_css_and_js(panel):
     panel.link(rel="stylesheet", type="text/css", href="../sgreens/pairwise_origins/all.css")
 
 
-def strain_set_selector(panel, avail_strains, set_id=''):
+def strain_set_selector(panel, tl, set_id=''):
     for text, value, strains in STRAIN_SETS:
         panel.br()
         panel.label(_class="control-label")
@@ -81,7 +81,7 @@ def strain_set_selector(panel, avail_strains, set_id=''):
         panel.div(_class="controls")
         panel.add("""<select data-placeholder=%s name=%s multiple="multiple" class="chosen">""" % (text, value + set_id))
         for strain in strains:
-            if strain in avail_strains:
+            if tl.is_available(strain):
                 panel.option(strain, value=strain)
         panel.add('</select>')
         panel.div.close()

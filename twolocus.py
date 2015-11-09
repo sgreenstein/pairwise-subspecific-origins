@@ -394,7 +394,7 @@ def main():
     tl = TwoLocus(in_path='/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
     classical = [s for s in
                  ["129P1/ReJ",# "129P3/J", "129S1SvlmJ", "129S6", "129T2/SvEmsJ", "129X1/SvJ", "A/J", "A/WySnJ",
-                  # "AEJ/GnLeJ", "AEJ/GnRk", "AKR/J", "ALR/LtJ", "ALS/LtJ", "BALB/cByJ", "BALB/cJ", "BDP/J", "BPH/2J",
+                  "AEJ/GnLeJ", "AEJ/GnRk", "AKR/J", "ALR/LtJ", "ALS/LtJ", "BALB/cByJ", "BALB/cJ", "BDP/J", "BPH/2J",
                   # "BPL/1J", "BPN/3J", "BTBR T<+>tf/J", "BUB/BnJ", "BXSB/MpJ", "C3H/HeJ", "C3HeB/FeJ", "C57BL/10J",
                   # "C57BL/10ScNJ", "C57BL/10SAAAJ", "C57BL/6CR", "C57BL/6J", "C57BL/6NCI", "C57BL/6Tc", "C57BLKS/J",
                   # "C57BR/cdJ", "C57L/J", "C58/J", "CBA/CaJ", "CBA/J", "CE/J", "CHMU/LeJ", "DBA/1J", "DBA/1LacJ",
@@ -408,7 +408,7 @@ def main():
                  if tl.is_available(s)]
     wild_derived = [s for s in
                     ['22MO',# 'BIK/g', 'BULS', 'BUSNA', 'BZO', 'CALB/RkJ', 'CASA/RkJ', 'CAST/EiJ', 'CIM', 'CKN', 'CKS',
-                     # 'CZECHI/EiJ', 'CZECHII/EiJ', 'DCA', 'DCP', 'DDO', 'DEB', 'DGA', 'DIK', 'DJO', 'DKN', 'DMZ', 'DOT',
+                     'CZECHI/EiJ', 'CZECHII/EiJ', 'DCA', 'DCP', 'DDO', 'DEB', 'DGA', 'DIK', 'DJO', 'DKN', 'DMZ', 'DOT',
                      # 'IS/CamRkJ', 'JF1/Ms', 'LEWES/EiJ', 'MBK', 'MBS', 'MCZ', 'MDG', 'MDGI', 'MDH', 'MGA', 'MH',
                      # 'MOLD/RkJ', 'MOLF/EiJ', 'MOLG/DnJ', 'MOR/RkJ', 'MPB', 'MSM/Ms', 'PERA/EiJ', 'PERC/EiJ', 'POHN/Deh',
                      # 'PWD/PhJ', 'PWK/PhJ', 'RBA/DnJ', 'RBB/DnJ', 'RBF/DnJ', 'SF/CamEiJ', 'SKIVE/EiJ', 'SOD1/EiJ',
