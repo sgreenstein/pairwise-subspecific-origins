@@ -22,22 +22,19 @@ def parse_position(string):
     >>> parse_position('3kk')
     3000000
     """
-    pos = 0
-    char_pos = None
-    for char_pos, char in enumerate(string):
-        if char.isdigit():
-            pos *= 10
-            pos += int(char)
-        elif char != ',':
+    units = ''
+    for index, char in enumerate(string):
+        if char.lower() in ['k', 'm']:
+            units = string[index:]
+            string = string[:index]
             break
-    # make sure it contained at least 1 digit
-    if char_pos is None:
-        raise TypeError("Invalid position")
-    for char in string[char_pos:]:
+    pos = float(string.replace(',', ''))
+    for char in units:
         if char.lower() == 'k':
             pos *= 1000
         if char.lower() == 'm':
             pos *= 1000000
+    pos = int(pos)
     return pos
 
 
