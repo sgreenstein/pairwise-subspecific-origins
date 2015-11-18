@@ -67,6 +67,15 @@ def link_css_and_js(panel):
     panel.script(type="text/javascript",
                  src="../sgreens/pairwise_origins/chosen/chosen.jquery.min.js")
     panel.script.close()
+    panel.script(type="text/javascript")
+    panel.add("""
+    function resetSelect() {
+        $('.chosen').val('').trigger('chosen:updated');
+    }
+    """)
+    panel.script.close()
+    panel.add("""<body onload="resetSelect()">""")
+    panel.add("""<body onpageshow = "resetSelect()">""")
     panel.link(rel="stylesheet", type="text/css", href="../sgreens/pairwise_origins/chosen/chosen.min.css")
     panel.link(rel="stylesheet", type="text/css", href="../sgreens/bootstrap/css/bootstrap.min.css")
     panel.link(rel="stylesheet", type="text/css", href="../sgreens/pairwise_origins/all.css")
