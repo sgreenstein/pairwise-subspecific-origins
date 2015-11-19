@@ -38,7 +38,7 @@ def combine(proximal_origin, distal_origin):
     return (proximal_origin << _SHIFT) | distal_origin
 
 _subspecies_ints = [DOM, MUS, CAS, NONE]
-_subspecies_names = ['dom', 'mus', 'cas', '???']
+_subspecies_names = ['dom', 'mus', 'cas', 'unk']
 _int_to_str = {i: s for i, s in zip(_subspecies_ints, _subspecies_names)}
 for prox_int, prox_name in zip(_subspecies_ints, _subspecies_names):
     for dist_int, dist_name in zip(_subspecies_ints, _subspecies_names):
@@ -77,16 +77,25 @@ for n, c in enumerate(iter_combos()):
     combo_names.append(_int_to_str[c])
 
 
-def to_ordinal(combo):
-    return combo_nums[combo]
+def to_ordinal(integer):
+    """
+    :param integer: int representation of subspecies
+    :return: integer in the range 0...num combos/subspecies
+    """
+    if integer in _subspecies_ints:
+        return _subspecies_ints.index(integer)
+    else:
+        return combo_nums[integer]
 
 
 def to_string(integer, ordinal=False):
     """
     :param integer: int representation of subspecies
     :return: subspecies name
-    >>> to_string(DOM) == 'dom'
-    True
+    >>> to_string(DOM)
+    'dom'
+    >>> to_string(to_ordinal(combine(DOM, MUS)), True)
+    ('dom', 'mus')
     """
     if ordinal:
         return combo_names[integer]
@@ -100,6 +109,9 @@ def to_int(string):
     >>> to_int('dom') == DOM
     True
     """
+    # TODO: remove stuff about "bad" (residual heterozygosity)
+    if len(string) == 2:
+        return 'bad'
     return _subspecies_ints[_subspecies_names.index(string.lower())]
 
 

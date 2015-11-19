@@ -87,7 +87,7 @@ def countMatrixResponse(form):
     print "content-type: text/json\n"
     tl = twolocus.TwoLocus('/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
     strains = []
-    for _, value, _ in helper.STRAIN_SETS:
+    for _, _, value, _ in helper.STRAIN_SETS:
         new_strains = form.getvalue(value)
         if type(new_strains) is list:
             strains += new_strains

@@ -49,7 +49,7 @@ def uniqueCombosResponse(form):
     tl = twolocus.TwoLocus('/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
     strains = [[], []]
     for set_num, set_id in enumerate(['A', 'B']):
-        for _, value, _ in helper.STRAIN_SETS:
+        for _, _, value, _ in helper.STRAIN_SETS:
             new_strains = form.getvalue(value + set_id)
             if type(new_strains) is list:
                 strains[set_num] += new_strains

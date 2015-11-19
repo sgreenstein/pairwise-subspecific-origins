@@ -20,13 +20,12 @@ import subspecies
 # import subspeciesCython as subspecies
 import pickle
 from scipy import stats
-
 from time import clock
 from collections import OrderedDict, Counter
 
 # integer representations of chromosomes
 CHROMO_TO_INT = {}
-for x in xrange(1, 21):
+for x in xrange(1, 23):
     CHROMO_TO_INT[str(x)] = x
 # CHROMO_TO_INT['X'] = 20
 CHROMO_TO_INT['Y'] = 21
@@ -115,7 +114,17 @@ class TwoLocus:
         :param file_list: list of csv files with subspecific origin information
         """
         for strain_name, chromosomes in self.parse_csvs(file_list).iteritems():
-            self.sample_dict[strain_name] = self.intervals_and_sources(chromosomes)
+            # TODO: remove stuff about "bad" (residual heterozygosity)
+            bad = False
+            for intervals in chromosomes.itervalues():
+                for ss, _ in intervals:
+                    if ss == 'bad':
+                        bad = True
+            if not bad:
+                print 'good', strain_name
+                self.sample_dict[strain_name] = self.intervals_and_sources(chromosomes)
+            else:
+                print 'bad', strain_name
         self.save_sample_dict()
 
     def parse_csvs(self, file_list):
@@ -197,7 +206,8 @@ class TwoLocus:
 
     def build_pairwise_matrix(self, strain_names, elem_intervals):
         # 3d matrix. First index is combo, remaining 2d matrices are counts for pairwise intervals
-        source_counts = np.zeros([subspecies.NUM_SUBSPECIES**2, len(elem_intervals), len(elem_intervals)], dtype=np.int16)
+        source_counts = np.zeros([subspecies.NUM_SUBSPECIES ** 2, len(elem_intervals), len(elem_intervals)],
+                                 dtype=np.int16)
         for strain_name in strain_names:
             intervals, sources = self.sample_dict[strain_name]
             # map this strain's intervals onto the elementary intervals
@@ -272,8 +282,9 @@ class TwoLocus:
         mins = [0] * 2
         maxes = [np.sum(self.sizes)] * 2
         coords.sort()
-        source_counts = Counter()
         output = {}
+        counts = [[[] for _ in subspecies.iter_subspecies(True)] for _ in subspecies.iter_subspecies(True)]
+        key = [subspecies.to_string(s) for s in subspecies.iter_subspecies(True)]
         for strain_name in strain_names:
             intervals = self.sample_dict[strain_name][0]
             sources = self.sample_dict[strain_name][1]
@@ -288,14 +299,14 @@ class TwoLocus:
                     mins[loc_num] = max(mins[loc_num], intervals[i - 1])
                 maxes[loc_num] = min(maxes[loc_num], intervals[i])
                 interval_indices[loc_num] = i
-            source_counts[subspecies.combine(sources[interval_indices[0]], sources[interval_indices[1]])] += 1
-        output['Proximal'] = [self.genome_index_to_dict(mins[0]), self.genome_index_to_dict(maxes[0])]
-        output['Distal'] = [self.genome_index_to_dict(mins[1]), self.genome_index_to_dict(maxes[1])]
-        for proximal in subspecies.iter_subspecies():
-            for distal in subspecies.iter_subspecies():
-                if subspecies.combine(proximal, distal) in source_counts:
-                    output.setdefault(subspecies.to_string(proximal), {})[subspecies.to_string(distal)] = \
-                        source_counts[subspecies.combine(proximal, distal)]
+            counts[subspecies.to_ordinal(sources[interval_indices[0]])][
+                subspecies.to_ordinal(sources[interval_indices[1]])].append(strain_name)
+        output['Key'] = key
+        output['Counts'] = counts
+        output['Intervals'] = [
+            [self.chrom_and_pos(mins[0]), self.chrom_and_pos(maxes[0])],
+            [self.chrom_and_pos(mins[1]), self.chrom_and_pos(maxes[1])]
+        ]
         return output
 
     def interlocus_dependence(self, strain_names):
@@ -360,7 +371,8 @@ class TwoLocus:
         :param strain_names2: list of strain names in second set
         :return: json object containing the interval pairs unique to each set of samples
         """
-        elem_intervals = self.make_elementary_intervals([self.sample_dict[sn][0] for sn in strain_names1 + strain_names2])
+        elem_intervals = self.make_elementary_intervals(
+            [self.sample_dict[sn][0] for sn in strain_names1 + strain_names2])
         sources1 = self.build_pairwise_matrix(strain_names1, elem_intervals)
         sources2 = self.build_pairwise_matrix(strain_names2, elem_intervals)
         output = {}
@@ -369,22 +381,22 @@ class TwoLocus:
             ('B', np.logical_and(sources2, np.logical_not(sources1)))
         ]:
             output[set_name] = {}
-            for combo in xrange(subspecies.NUM_SUBSPECIES**2):
+            for combo in xrange(subspecies.NUM_SUBSPECIES ** 2):
                 combo_uniquities = np.where(set_uniquities[combo])
                 combo_names = subspecies.to_string(combo, True)
                 output[set_name].setdefault(combo_names[0], {})[combo_names[1]] = [
                     [
                         [  # proximal interval
-                            self.genome_index_to_dict(elem_intervals[i-1]),  # interval start
-                            self.genome_index_to_dict(elem_intervals[i])   # interval end
+                            self.genome_index_to_dict(elem_intervals[i - 1]),  # interval start
+                            self.genome_index_to_dict(elem_intervals[i])  # interval end
                         ],
                         [  # distal interval
-                            self.genome_index_to_dict(elem_intervals[j-1]),  # interval start
-                            self.genome_index_to_dict(elem_intervals[j])   # interval end
+                            self.genome_index_to_dict(elem_intervals[j - 1]),  # interval start
+                            self.genome_index_to_dict(elem_intervals[j])  # interval end
                         ]
                     ]
                     for i, j in zip(combo_uniquities[0], combo_uniquities[1])
-                ]
+                    ]
         return output
 
 
@@ -392,8 +404,12 @@ def main():
     """ Run some tests with a dummy file, overriding chromosome lengths locally for sake of testing.
     """
     tl = TwoLocus(in_path='/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
+    # print len(tl.list_available_strains())
+    tl.preprocess(['ccv_origins.csv'])
+    # print tl.is_available('CHMU/LeJ')
+    exit()
     classical = [s for s in
-                 ["129P1/ReJ",# "129P3/J", "129S1SvlmJ", "129S6", "129T2/SvEmsJ", "129X1/SvJ", "A/J", "A/WySnJ",
+                 ["129P1/ReJ",  # "129P3/J", "129S1SvlmJ", "129S6", "129T2/SvEmsJ", "129X1/SvJ", "A/J", "A/WySnJ",
                   "AEJ/GnLeJ", "AEJ/GnRk", "AKR/J", "ALR/LtJ", "ALS/LtJ", "BALB/cByJ", "BALB/cJ", "BDP/J", "BPH/2J",
                   # "BPL/1J", "BPN/3J", "BTBR T<+>tf/J", "BUB/BnJ", "BXSB/MpJ", "C3H/HeJ", "C3HeB/FeJ", "C57BL/10J",
                   # "C57BL/10ScNJ", "C57BL/10SAAAJ", "C57BL/6CR", "C57BL/6J", "C57BL/6NCI", "C57BL/6Tc", "C57BLKS/J",
@@ -404,10 +420,11 @@ def main():
                   # "NONcNZO5/LtJ", "NOR/LtJ", "NU/J", "NZB/BlNJ", "NZL/LtJ", "NZM2410/J", "NZO/HlLtJ", "NZW/LacJ", "P/J",
                   # "PL/J", "PN/nBSwUmabJ", "RF/J", "RHJ/LeJ", "RIIIS/J", "RSV/LeJ", "SB/LeJ", "SEA/GnJ", "SEC/1GnLeJ",
                   # "SEC/1ReJ", "SH1/LeJ", "SI/Col Tyrp1 Dnahc11/J", "SJL/Bm", "SJL/J", "SM/J", "SSL/LeJ", "ST/bJ",
-                  "STX/Le", ]#"SWR/J", "TALLYHO/JngJ", "TKDU/DnJ", "TSJ/LeJ", "YBR/EiJ", "ZRDCT Rax<+>ChUmdJ"]
+                  "STX/Le", ]  # "SWR/J", "TALLYHO/JngJ", "TKDU/DnJ", "TSJ/LeJ", "YBR/EiJ", "ZRDCT Rax<+>ChUmdJ"]
                  if tl.is_available(s)]
     wild_derived = [s for s in
-                    ['22MO',# 'BIK/g', 'BULS', 'BUSNA', 'BZO', 'CALB/RkJ', 'CASA/RkJ', 'CAST/EiJ', 'CIM', 'CKN', 'CKS',
+                    ['22MO',
+                     # 'BIK/g', 'BULS', 'BUSNA', 'BZO', 'CALB/RkJ', 'CASA/RkJ', 'CAST/EiJ', 'CIM', 'CKN', 'CKS',
                      'CZECHI/EiJ', 'CZECHII/EiJ', 'DCA', 'DCP', 'DDO', 'DEB', 'DGA', 'DIK', 'DJO', 'DKN', 'DMZ', 'DOT',
                      # 'IS/CamRkJ', 'JF1/Ms', 'LEWES/EiJ', 'MBK', 'MBS', 'MCZ', 'MDG', 'MDGI', 'MDH', 'MGA', 'MH',
                      # 'MOLD/RkJ', 'MOLF/EiJ', 'MOLG/DnJ', 'MOR/RkJ', 'MPB', 'MSM/Ms', 'PERA/EiJ', 'PERC/EiJ', 'POHN/Deh',
@@ -415,7 +432,6 @@ def main():
                      # 'STLT', 'STRA', 'STRB', 'STUF', 'STUP', 'STUS', 'TIRANO/EiJ', 'WLA', 'WMP', 'WSB/EiJ',
                      'ZALENDE/EiJ'] if tl.is_available(s)]
     tl.unique_combos(classical, wild_derived)
-    tl.preprocess(['subspecific_origins.csv'])
     exit()
     x = TwoLocus(chrom_sizes=[20e6, 20e6])
     x.preprocess(["test2.csv"])
@@ -432,7 +448,8 @@ def main():
     total = 0.0
 
     for combo in subspecies.iter_combos():
-        print "\t{:15s}({:4d}):{:1.5f}".format(subspecies.to_string(combo), combo, areas[str(subspecies.to_string(combo))])
+        print "\t{:15s}({:4d}):{:1.5f}".format(subspecies.to_string(combo), combo,
+                                               areas[str(subspecies.to_string(combo))])
         total += areas[str(subspecies.to_string(combo))]
     print "\t{:21s}:{:1.5f}".format("Total", total)
 
