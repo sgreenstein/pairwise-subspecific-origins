@@ -84,7 +84,7 @@ def countMatrixResponse(form):
     """ Given a set of samples and a pair of loci, find the counts of each combo and the interval bounds
     :return: json encoding of combo counts and interval bounds
     """
-    print "content-type: text/json\n"
+    # print "content-type: text/json\n"
     tl = twolocus.TwoLocus('/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
     strains = []
     for _, _, value, _ in helper.STRAIN_SETS:
@@ -97,13 +97,45 @@ def countMatrixResponse(form):
     chroms = []
     for pos_num in xrange(2):
         # TODO: error checking
-        positions.append(parse_position(form.getvalue('pos' + str(pos_num+1))))
-        chroms.append(form.getvalue('chrom' + str(pos_num+1)))
-    print json.dumps(tl.sources_at_point_pair(chroms[0], positions[0], chroms[1], positions[1], strains),
-                     cls=helper.NumpyEncoder)
-    return None
+        positions.append(parse_position(form.getvalue('pos' + str(pos_num + 1))))
+        chroms.append(form.getvalue('chrom' + str(pos_num + 1)))
+    # print json.dumps(tl.sources_at_point_pair(chroms[0], positions[0], chroms[1], positions[1], strains),
+    #                  cls=helper.NumpyEncoder)
+    return drawMatrix(tl.sources_at_point_pair(chroms[0], positions[0], chroms[1], positions[1], strains))
+
+
+def drawMatrix(data):
+    panel = markup.page()
+    helper.link_css_and_js(panel)
+    full_names = {'dom': 'Domesticus', 'mus': 'Musculus', 'cas': 'Castaneus', 'unk': 'Unknown'}
+    panel.table()
+    panel.tr()
+    panel.td('')
+    panel.td("Distal interval: Chromosome {}: {:,} - {:,}".format(*tuple(data['Intervals'][1])))
+    panel.tr.close()
+    panel.tr()
+    panel.td("Proximal interval: Chromosome {}: {:,} - {:,}".format(*tuple(data['Intervals'][0])))
+    panel.td()
+    panel.table(_class="table table-striped")
+    panel.tr()
+    panel.th('')
+    for subspecies in data['Key']:
+        panel.th(full_names[subspecies])
+    panel.tr.close()
+    for subspecies, samples in zip(data['Key'], data['Samples']):
+        panel.tr()
+        panel.th(full_names[subspecies])
+        for sample_set in samples:
+            panel.td(', '.join(sample_set) or '-')
+        panel.tr.close()
+    panel.table.close()
+    panel.td.close()
+    panel.tr.close()
+    panel.table.close()
+    return panel
 
 
 if __name__ == '__main__':
     import doctest
+
     doctest.testmod()

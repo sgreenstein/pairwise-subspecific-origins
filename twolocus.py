@@ -88,11 +88,22 @@ class TwoLocus:
             raise ValueError('Position exceeds chromosome length')
         return self.offsets[chromosome - 1] + position
 
-    def chrom_and_pos(self, index):
-        """ Converts a single genome position to a chromosome and position
+    def chrom_and_pos(self, index, index2=None):
+        """ Converts genome position to chromosome and position
         :param index: integer denoting chromosome and position
+        :param index2: second integer denoting chromosome and position (optional)
         :return: string representation of chromosome, position on chromosome
         """
+        if index2 is None:
+            return self._chrom_and_pos(index)
+        else:
+            start_chrom, start_pos = self._chrom_and_pos(index)
+            end_chrom, end_pos = self._chrom_and_pos(index2)
+            if start_chrom != end_chrom:
+                start_pos = 0  # was end of previous chromosome, so change to beginning of current
+            return end_chrom, int(start_pos), int(end_pos)  # convert from numpy int type
+
+    def _chrom_and_pos(self, index):
         chromo_num = 1
         while index > self.sizes[chromo_num - 1]:
             index -= self.sizes[chromo_num - 1]
@@ -283,7 +294,7 @@ class TwoLocus:
         maxes = [np.sum(self.sizes)] * 2
         coords.sort()
         output = {}
-        counts = [[[] for _ in subspecies.iter_subspecies(True)] for _ in subspecies.iter_subspecies(True)]
+        samples = [[[] for _ in subspecies.iter_subspecies(True)] for _ in subspecies.iter_subspecies(True)]
         key = [subspecies.to_string(s) for s in subspecies.iter_subspecies(True)]
         for strain_name in strain_names:
             intervals = self.sample_dict[strain_name][0]
@@ -299,13 +310,13 @@ class TwoLocus:
                     mins[loc_num] = max(mins[loc_num], intervals[i - 1])
                 maxes[loc_num] = min(maxes[loc_num], intervals[i])
                 interval_indices[loc_num] = i
-            counts[subspecies.to_ordinal(sources[interval_indices[0]])][
+            samples[subspecies.to_ordinal(sources[interval_indices[0]])][
                 subspecies.to_ordinal(sources[interval_indices[1]])].append(strain_name)
         output['Key'] = key
-        output['Counts'] = counts
+        output['Samples'] = samples
         output['Intervals'] = [
-            [self.chrom_and_pos(mins[0]), self.chrom_and_pos(maxes[0])],
-            [self.chrom_and_pos(mins[1]), self.chrom_and_pos(maxes[1])]
+            self.chrom_and_pos(mins[0], maxes[0]),
+            self.chrom_and_pos(mins[1], maxes[1])
         ]
         return output
 
