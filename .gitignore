@@ -2,3 +2,5 @@
 *.npy
 # IDE config files
 .idea/
+# compiled python files
+*.pyc
