@@ -56,20 +56,22 @@ def strain_set_selector(panel, tl, set_id=''):
     opened_group_div = False
     for group, text, value, strains in STRAIN_SETS:
         panel.br()
-        if group is not None and not opened_group_div:
-            opened_group_div = True
-            panel.h4(group)
-            panel.div(_class="control-group", style="display: block")
-        panel.label(_class="control-label")
-        panel.add(text)
-        panel.label.close()
-        panel.div(_class="controls")
-        panel.add("""<select data-placeholder=%s name=%s multiple="multiple" class="chosen">""" % (text, value + set_id))
-        for strain in strains:
-            if tl.is_available(strain):
-                panel.option(strain, value=strain)
-        panel.add('</select>')
-        panel.div.close()
+        # uncomment the following to add in CC reference
+        # if group is not None and not opened_group_div:
+        #     opened_group_div = True
+        #     panel.h4(group)
+        #     panel.div(_class="control-group", style="display: block")
+        if group is None:  # skip CC reference for now
+            panel.label(_class="control-label")
+            panel.add(text)
+            panel.label.close()
+            panel.div(_class="controls")
+            panel.add("""<select data-placeholder=%s name=%s multiple="multiple" class="chosen">""" % (text, value + set_id))
+            for strain in strains:
+                if tl.is_available(strain):
+                    panel.option(strain, value=strain)
+            panel.add('</select>')
+            panel.div.close()
     if opened_group_div:
         panel.div.close()
 

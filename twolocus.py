@@ -400,6 +400,7 @@ def main():
     """
     tl = TwoLocus(in_path='/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
     # print len(tl.list_available_strains())
+    tl.preprocess(['cc_origins.csv'])
     tl.preprocess(['ccv_origins.csv'])
     # print tl.is_available('CHMU/LeJ')
     exit()
