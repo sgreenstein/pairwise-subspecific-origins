@@ -27,10 +27,10 @@ def indexPage(form):
     panel.br()
     panel.form(_class="form-horizontal", action="", method="POST", enctype="multipart/form-data")
     panel.div(_class="control-group")
-    panel.h3('Samples for Set A')
-    helper.strain_set_selector(panel, tl, 'A')
-    panel.h3('Samples for Set B')
-    helper.strain_set_selector(panel, tl, 'B')
+    panel.h3('Background Samples')
+    helper.strain_set_selector(panel, tl, 'background')
+    panel.h3('Foreground Samples')
+    helper.strain_set_selector(panel, tl, 'foreground')
     panel.script(type="text/javascript")
     panel.add("""$(".chosen").chosen()""")
     panel.script.close()
@@ -48,7 +48,7 @@ def uniqueCombosResponse(form):
     print "content-type: text/json\n"
     tl = twolocus.TwoLocus('/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
     strains = [[], []]
-    for set_num, set_id in enumerate(['A', 'B']):
+    for set_num, set_id in enumerate(['background', 'foreground']):
         for _, _, value, _ in helper.STRAIN_SETS:
             new_strains = form.getvalue(value + set_id)
             if type(new_strains) is list:

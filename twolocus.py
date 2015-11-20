@@ -365,38 +365,33 @@ class TwoLocus:
         return lo, hi
 
     # @profile
-    def unique_combos(self, strain_names1, strain_names2):
-        """ finds combinations at interval pairs that are unique to one set of samples
-        :param strain_names1: list of strain names in first set
-        :param strain_names2: list of strain names in second set
-        :return: json object containing the interval pairs unique to each set of samples
+    def unique_combos(self, background_strains, foreground_strains):
+        """ finds combinations at interval pairs that is absent from the background but shared by all foreground samples
+        :param background_strains: list of strain names
+        :param foreground_strains: list of strain names
+        :return: json object containing interval pairs
         """
         elem_intervals = self.make_elementary_intervals(
-            [self.sample_dict[sn][0] for sn in strain_names1 + strain_names2])
-        sources1 = self.build_pairwise_matrix(strain_names1, elem_intervals)
-        sources2 = self.build_pairwise_matrix(strain_names2, elem_intervals)
+            [self.sample_dict[sn][0] for sn in background_strains + foreground_strains])
+        background = self.build_pairwise_matrix(background_strains, elem_intervals)
+        foreground = self.build_pairwise_matrix(foreground_strains, elem_intervals)
         output = {}
-        for set_name, set_uniquities in [
-            ('A', np.logical_and(sources1, np.logical_not(sources2))),
-            ('B', np.logical_and(sources2, np.logical_not(sources1)))
-        ]:
-            output[set_name] = {}
-            for combo in xrange(subspecies.NUM_SUBSPECIES ** 2):
-                combo_uniquities = np.where(set_uniquities[combo])
-                combo_names = subspecies.to_string(combo, True)
-                output[set_name].setdefault(combo_names[0], {})[combo_names[1]] = [
-                    [
-                        [  # proximal interval
-                            self.genome_index_to_dict(elem_intervals[i - 1]),  # interval start
-                            self.genome_index_to_dict(elem_intervals[i])  # interval end
-                        ],
-                        [  # distal interval
-                            self.genome_index_to_dict(elem_intervals[j - 1]),  # interval start
-                            self.genome_index_to_dict(elem_intervals[j])  # interval end
-                        ]
+        uniquities = np.logical_and(background == np.max(background), np.logical_not(foreground))
+        for combo in xrange(subspecies.NUM_SUBSPECIES):
+            combo_uniquities = np.where(uniquities[combo])
+            combo_name = ','.join(subspecies.to_string(combo, True))
+            output[combo_name] = []
+            for i, j in zip(combo_uniquities[0], combo_uniquities[1]):
+                output[combo_name].append([
+                    [  # proximal interval
+                        self.genome_index_to_dict(elem_intervals[i - 1]),  # interval start
+                        self.genome_index_to_dict(elem_intervals[i])  # interval end
+                    ],
+                    [  # distal interval
+                        self.genome_index_to_dict(elem_intervals[j - 1]),  # interval start
+                        self.genome_index_to_dict(elem_intervals[j])  # interval end
                     ]
-                    for i, j in zip(combo_uniquities[0], combo_uniquities[1])
-                    ]
+                ])
         return output
 
 
