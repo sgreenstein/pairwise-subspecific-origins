@@ -45,7 +45,7 @@ def indexPage(form):
 
 
 def uniqueCombosResponse(form):
-    print "content-type: text/json\n"
+    # print "content-type: text/json\n"
     tl = twolocus.TwoLocus('/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
     strains = [[], []]
     for set_num, set_id in enumerate(['background', 'foreground']):
@@ -55,7 +55,13 @@ def uniqueCombosResponse(form):
                 strains[set_num] += new_strains
             elif new_strains is not None:
                 strains[set_num].append(new_strains)
-    print json.dumps(tl.unique_combos(strains[0], strains[1]), cls=helper.NumpyEncoder)
+    # print json.dumps(tl.unique_combos(strains[0], strains[1]), cls=helper.NumpyEncoder)
+    # panel = markup.page()
+    # panel.iframe(src='../sgreens/pairwise_origins/pairwiseGenome.html', width="100%", height="1000px")
+    # return panel
+    print "content-type: text/html\n"
+    with open('../sgreens/pairwise_origins/pairwiseGenome.html') as fp:
+        print fp.read()
     return None
 
 
