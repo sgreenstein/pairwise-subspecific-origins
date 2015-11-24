@@ -55,13 +55,13 @@ def link_css_and_js(panel):
 def strain_set_selector(panel, tl, set_id=''):
     opened_group_div = False
     for group, text, value, strains in STRAIN_SETS:
-        panel.br()
         # uncomment the following to add in CC reference
         # if group is not None and not opened_group_div:
         #     opened_group_div = True
         #     panel.h4(group)
         #     panel.div(_class="control-group", style="display: block")
         if group is None:  # skip CC reference for now
+            panel.br()
             panel.label(_class="control-label")
             panel.add(text)
             panel.label.close()

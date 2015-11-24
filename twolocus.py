@@ -11,13 +11,11 @@ import os
 import sys
 import numpy as np
 import csv
-import string
-import glob
 import logging
-import subspecies
-# import pyximport
-# pyximport.install()
-# import subspeciesCython as subspecies
+# import subspecies
+import pyximport
+pyximport.install()
+import subspeciesCython as subspecies
 import pickle
 from scipy import stats
 from time import clock
@@ -129,7 +127,7 @@ class TwoLocus:
             bad = False
             for intervals in chromosomes.itervalues():
                 for ss, _ in intervals:
-                    if ss == 'bad':
+                    if ss == -999:
                         bad = True
             if not bad:
                 print 'good', strain_name
@@ -167,13 +165,13 @@ class TwoLocus:
                     lastEnd = 0 if not intervals else intervals[-1][1]
                     # add null interval if there is a gap between intervals with assigned subspecies
                     if not int(row[START]) - 1 <= lastEnd <= int(row[START]) + 1:
-                        intervals.append((subspecies.NONE, int(row[START])))
+                        intervals.append((subspecies.UNK, int(row[START])))
                     intervals.append((subspec_int(row), int(row[END])))
         # add null interval to end of each chromosome
         for chromosomes in strains.itervalues():
             for chromosome, intervals in chromosomes.iteritems():
                 if intervals[-1] < self.sizes[chromosome - 1]:
-                    intervals.append((subspecies.NONE, self.sizes[chromosome - 1]))
+                    intervals.append((subspecies.UNK, self.sizes[chromosome - 1]))
         return strains
 
     def intervals_and_sources(self, chromosomes):
@@ -215,28 +213,22 @@ class TwoLocus:
                     i += 1
         return elem_intervals
 
+    # @profile
     def build_pairwise_matrix(self, strain_names, elem_intervals):
         # 3d matrix. First index is combo, remaining 2d matrices are counts for pairwise intervals
-        source_counts = np.zeros([subspecies.NUM_SUBSPECIES ** 2, len(elem_intervals), len(elem_intervals)],
+        source_counts = np.zeros([(subspecies.NUM_SUBSPECIES+1)**2, len(elem_intervals), len(elem_intervals)],
                                  dtype=np.int16)
         for strain_name in strain_names:
             intervals, sources = self.sample_dict[strain_name]
             # map this strain's intervals onto the elementary intervals
-            breaks = np.searchsorted(elem_intervals, intervals)
-            for row, row_end in enumerate(intervals):
-                row_ind = range(breaks[row], breaks[row] + 1)
-                if not subspecies.is_known(sources[row]):
-                    continue
-                for col, col_end in enumerate(intervals):
-                    if not subspecies.is_known(sources[col]):
-                        continue
+            breaks = np.insert(np.searchsorted(elem_intervals, intervals), 0, -1)
+            for row in xrange(len(intervals)):
+                for col in xrange(row, len(intervals)):  # only upper triangle
                     source = subspecies.combine(sources[row], sources[col])
-                    col_ind = range(breaks[col], breaks[col] + 1)
-                    for i in col_ind:
-                        source_counts[subspecies.to_ordinal(source), row_ind, i] += 1
+                    source_ordinate = subspecies.ordinal(source)
+                    source_counts[source_ordinate, breaks[row]+1:breaks[row+1]+1, breaks[col]+1:breaks[col+1]+1] += 1
         return source_counts
 
-    # @profile
     def pairwise_frequencies(self, strain_names, include_unknown=False, verbose=False):
         """ For every locus pair and every label pair, count the number of strains which have those
         labels at those pairs of loci.
@@ -411,10 +403,10 @@ def main():
     """
     tl = TwoLocus(in_path='/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
     # print len(tl.list_available_strains())
-    tl.preprocess(['cc_origins.csv'])
-    tl.preprocess(['ccv_origins.csv'])
+    # tl.preprocess(['cc_origins.csv'])
+    # tl.preprocess(['ccv_origins.csv'])
     # print tl.is_available('CHMU/LeJ')
-    exit()
+    # exit()
     classical = [s for s in
                  ["129P1/ReJ",  # "129P3/J", "129S1SvlmJ", "129S6", "129T2/SvEmsJ", "129X1/SvJ", "A/J", "A/WySnJ",
                   "AEJ/GnLeJ", "AEJ/GnRk", "AKR/J", "ALR/LtJ", "ALS/LtJ", "BALB/cByJ", "BALB/cJ", "BDP/J", "BPH/2J",

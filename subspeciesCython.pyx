@@ -1,5 +1,5 @@
 """
-File: subspecies.py
+File: subspecies.pyx
 Author: Seth Greenstein
 Purpose: Provide methods for working with subspecies and combinations of subspecies
 
@@ -18,18 +18,18 @@ Purpose: Provide methods for working with subspecies and combinations of subspec
 ...                    print 'Failed'
 """
 
-DOM = 0b001
-MUS = 0b010
-CAS = 0b100
-UNK = 0b1000
+cdef int DOM = 0b001
+cdef int MUS = 0b010
+cdef int CAS = 0b100
+cdef int UNK = 0b1000
 NUM_SUBSPECIES = 3
 
-_SHIFT = 4
-_PROXIMAL_MASK = 0b111 << _SHIFT
-_DISTAL_MASK = 0b111
+cdef int _SHIFT = 4
+cdef int _PROXIMAL_MASK = 0b111 << _SHIFT
+cdef int _DISTAL_MASK = 0b111
 
 
-def combine(proximal_origin, distal_origin):
+cpdef int combine(int proximal_origin, int distal_origin):
     """ Converts two int species to an int combination
     :param proximal_origin: int representing subspecific origin of proximal locus
     :param distal_origin: int representing subspecific origin of distal locus
@@ -76,7 +76,7 @@ for n, c in enumerate(iter_combos(True)):
     combo_names.append(_int_to_str[c])
 
 
-def ordinal(combo):
+cpdef int ordinal(int combo):
     """
     :param combo: int representation of subspecies combo
     :return: integer in the range 0...num combos/subspecies
@@ -98,7 +98,7 @@ def to_string(integer, ordinal=False):
     return _int_to_str[integer]
 
 
-def to_int(string):
+cpdef int to_int(string):
     """
     :param string: subspecies name
     :return: int representation of subspecies
@@ -107,11 +107,11 @@ def to_int(string):
     """
     # TODO: remove stuff about "bad" (residual heterozygosity)
     if len(string) == 2:
-        return 'bad'
+        return -999
     return _subspecies_ints[_subspecies_names.index(string.lower())]
 
 
-def is_distal(subspecies, combo):
+cpdef int is_distal(int subspecies, int combo):
     """
     :param subspecies: int representation of single subspecies
     :param combo: int representing combination of two subspecies
@@ -124,7 +124,7 @@ def is_distal(subspecies, combo):
     return (subspecies & _DISTAL_MASK) == (combo & _DISTAL_MASK)
 
 
-def is_proximal(subspecies, combo):
+cpdef int is_proximal(int subspecies, int combo):
     """
     :param subspecies: int representation of single subspecies
     :param combo: int representing combination of two subspecies
@@ -137,7 +137,7 @@ def is_proximal(subspecies, combo):
     return ((subspecies << _SHIFT) & _PROXIMAL_MASK) == (combo & _PROXIMAL_MASK)
 
 
-def is_homo(combo):
+cpdef int is_homo(int combo):
     """
     :param combo: integer representation of a combination
     :return: True if both origins are the same
@@ -148,10 +148,10 @@ def is_homo(combo):
     """
     return ((combo >> _SHIFT) & _DISTAL_MASK) == (combo & _DISTAL_MASK)
 
-_NONE_NONE = combine(UNK, UNK)
+cdef int _NONE_NONE = combine(UNK, UNK)
 
 
-def is_known(combo):
+cpdef int is_known(int combo):
     """ Checks to see if either origin of combo is unknown
     :param combo: int representation of origin combination
     :return: True if neither origin is unknown
@@ -163,7 +163,7 @@ def is_known(combo):
     return not _NONE_NONE & combo
 
 
-def proximal(combo):
+cpdef int proximal(int combo):
     """ Returns the proximal subspecies from a combo
     :param combo: int representation of origin combination
     :return: int representation of the proximal origin
@@ -173,7 +173,7 @@ def proximal(combo):
     return (combo & _PROXIMAL_MASK) >> _SHIFT
 
 
-def distal(combo):
+cpdef int distal(int combo):
     """ Returns the distal subspecies from a combo
     :param combo: int representation of origin combination
     :return: int representation of the distal origin
