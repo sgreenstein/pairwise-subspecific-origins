@@ -14,6 +14,7 @@ import csv
 import logging
 # import subspecies
 import pyximport
+
 pyximport.install()
 import subspeciesCython as subspecies
 import pickle
@@ -216,7 +217,7 @@ class TwoLocus:
     # @profile
     def build_pairwise_matrix(self, strain_names, elem_intervals):
         # 3d matrix. First index is combo, remaining 2d matrices are counts for pairwise intervals
-        source_counts = np.zeros([(subspecies.NUM_SUBSPECIES+1)**2, len(elem_intervals), len(elem_intervals)],
+        source_counts = np.zeros([(subspecies.NUM_SUBSPECIES + 1) ** 2, len(elem_intervals), len(elem_intervals)],
                                  dtype=np.int16)
         for strain_name in strain_names:
             intervals, sources = self.sample_dict[strain_name]
@@ -225,8 +226,9 @@ class TwoLocus:
             for row in xrange(len(intervals)):
                 for col in xrange(row, len(intervals)):  # only upper triangle
                     source = subspecies.combine(sources[row], sources[col])
-                    source_ordinate = subspecies.ordinal(source)
-                    source_counts[source_ordinate, breaks[row]+1:breaks[row+1]+1, breaks[col]+1:breaks[col+1]+1] += 1
+                    source_ordinate = subspecies.to_ordinal(source)
+                    source_counts[source_ordinate, breaks[row] + 1:breaks[row + 1] + 1,
+                    breaks[col] + 1:breaks[col + 1] + 1] += 1
         return source_counts
 
     def pairwise_frequencies(self, strain_names, include_unknown=False, verbose=False):
@@ -249,7 +251,19 @@ class TwoLocus:
         elem_intervals = self.make_elementary_intervals(interval_lists)
         logging.info("%d total intervals", len(elem_intervals))
 
-        return self.build_pairwise_matrix(strain_names, elem_intervals), elem_intervals
+        output = []
+        sources = self.build_pairwise_matrix(strain_names, elem_intervals)
+        for i in xrange(len(elem_intervals)):
+            # only upper triangle is meaningful
+            for j in xrange(i + 1, len(elem_intervals)):
+                output.append(sources[:subspecies.NUM_SUBSPECIES, i, j] + [
+                    # proximal interval
+                    elem_intervals[i-1],
+                    elem_intervals[i],
+                    elem_intervals[j-1],
+                    elem_intervals[j]
+                    ])
+        return output
 
     def calculate_genomic_area(self, counts, intervals):
         """
@@ -294,7 +308,6 @@ class TwoLocus:
             # find interval containing each location
             i = 0
             interval_indices = [None, None]
-            # output['coords'] = coords
             for loc_num in xrange(2):
                 while intervals[i] < coords[loc_num]:
                     i += 1
@@ -340,15 +353,24 @@ class TwoLocus:
         np.seterr(**old_settings)
         combo_expectations = np.nan_to_num(combo_expectations)
         # do chi-square test
-        chi_sq = np.zeros_like(combo_expectations[:, :, 0])
-        p_values = np.ones_like(chi_sq)
+        output = []
         for i in xrange(len(intervals)):
             # only upper triangle is meaningful
             for j in xrange(i + 1, len(intervals)):
                 nonzero_expectations = np.where(combo_expectations[i, j])
-                chi_sq[i, j], p_values[i, j] = stats.chisquare(
+                chi_sq, p_value = stats.chisquare(
                     combo_counts[i, j][nonzero_expectations], combo_expectations[i, j][nonzero_expectations])
-        return intervals, chi_sq, p_values
+                output.append([
+                        chi_sq,
+                        p_value,
+                        # proximal interval
+                        intervals[i-1],
+                        intervals[i],
+                        # distal interval
+                        intervals[j],
+                        intervals[j-1]
+                        ])
+        return output
 
     @staticmethod
     def _find_interval_bounds(intervals1, index1, intervals2, index2):
@@ -378,22 +400,20 @@ class TwoLocus:
             [self.sample_dict[sn][0] for sn in background_strains + foreground_strains])
         background = self.build_pairwise_matrix(background_strains, elem_intervals)
         foreground = self.build_pairwise_matrix(foreground_strains, elem_intervals)
-        output = {}
+        output = []
         uniquities = np.logical_and(background == np.max(background), np.logical_not(foreground))
         for combo in xrange(subspecies.NUM_SUBSPECIES):
             combo_uniquities = np.where(uniquities[combo])
-            combo_name = ','.join(subspecies.to_string(combo, True))
-            output[combo_name] = []
+            combo_color = subspecies.to_color(combo)
             for i, j in zip(combo_uniquities[0], combo_uniquities[1]):
-                output[combo_name].append([
-                    [  # proximal interval
-                        self.genome_index_to_dict(elem_intervals[i - 1]),  # interval start
-                        self.genome_index_to_dict(elem_intervals[i])  # interval end
-                    ],
-                    [  # distal interval
-                        self.genome_index_to_dict(elem_intervals[j - 1]),  # interval start
-                        self.genome_index_to_dict(elem_intervals[j])  # interval end
-                    ]
+                output.append([
+                    combo_color,
+                    # proximal interval start, end
+                    elem_intervals[i - 1],
+                    elem_intervals[i],
+                    # distal interval start, end
+                    elem_intervals[j - 1],
+                    elem_intervals[j]
                 ])
         return output
 

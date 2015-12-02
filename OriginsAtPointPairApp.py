@@ -101,6 +101,7 @@ def countMatrixResponse(form):
         chroms.append(form.getvalue('chrom' + str(pos_num + 1)))
     # print json.dumps(tl.sources_at_point_pair(chroms[0], positions[0], chroms[1], positions[1], strains),
     #                  cls=helper.NumpyEncoder)
+    # print tl.sources_at_point_pair(chroms[0], positions[0], chroms[1], positions[1], strains)
     return drawMatrix(tl.sources_at_point_pair(chroms[0], positions[0], chroms[1], positions[1], strains))
 
 

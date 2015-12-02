@@ -49,6 +49,7 @@ _combos = []
 
 def iter_subspecies(include_unknown=False):
     """ an iterator for all subspecies
+    :param include_unknown: Include combos with UNK as one of the sources, default False
     """
     return _subspecies_ints[:len(_subspecies_ints) - (not include_unknown)]
 
@@ -63,6 +64,7 @@ _combos.append(combine(UNK, UNK))
 
 def iter_combos(include_unknown=False):
     """ an iterator for all combinations of subspecies
+    :param include_unknown: Include combos with UNK as one of the sources, default False
     """
     if include_unknown:
         return _combos
@@ -75,18 +77,46 @@ for n, c in enumerate(iter_combos(True)):
     combo_nums[c] = n
     combo_names.append(_int_to_str[c])
 
+_COLORS = {DOM: 0x0000ff, MUS: 0xff0000, CAS: 0x00ff00}
+_ORDINAL_COLORS = []
 
-cpdef int ordinal(int combo):
+for combo in iter_combos():
+        color = _COLORS[proximal(combo)] | (_COLORS[distal(combo)] / 2)
+        _ORDINAL_COLORS.append(color)
+        _COLORS[combo] = color
+
+
+cpdef int to_color(integer, ordinal=False):
     """
-    :param combo: int representation of subspecies combo
+    :param integer: int representation of subspecies or subspecies combo
+    :param ordinal: if the integer is the ordinal representation, default False
+    :return: integer representing the rgb color
+    >>> to_color(combine(DOM, MUS)) == to_color(to_ordinal(combine(DOM, MUS)), True)
+    """
+    if ordinal:
+        return _ORDINAL_COLORS[integer]
+    return _COLORS[integer]
+
+
+
+cpdef int to_ordinal(int integer):
+    """
+    :param integer: int representation of subspecies combo
     :return: integer in the range 0...num combos/subspecies
+    >>> to_ordinal(MUS) == iter_subspecies().index(MUS)
+    True
+    >>> to_ordinal(combine(DOM, CAS)) == iter_combos().index(combine(DOM, CAS))
+    True
     """
-    return combo_nums[combo]
+    if proximal(integer):
+        return combo_nums[integer]
+    return iter_subspecies(True).index(integer)
 
 
 def to_string(integer, ordinal=False):
     """
     :param integer: int representation of subspecies
+    :param ordinal: if the integer is the ordinal representation, default False
     :return: subspecies name
     >>> to_string(DOM)
     'dom'
