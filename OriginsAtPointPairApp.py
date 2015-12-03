@@ -53,7 +53,7 @@ def indexPage(form):
     panel.form(_class="form-horizontal", action="", method="POST", enctype="multipart/form-data")
     panel.div(_class="control-group")
     panel.h3('Set of Samples')
-    helper.strain_set_selector(panel, tl)
+    has_strains = helper.strain_set_selector(panel, tl)
     for pos_num in ('1', '2'):
         panel.h3('Position ' + pos_num)
         helper.open_control(panel, 'Chromosome')
@@ -64,7 +64,8 @@ def indexPage(form):
         panel.select.close()
         helper.close_control(panel)
         helper.open_control(panel, 'Position')
-        panel.input(_class="input-medium", name="pos" + pos_num, type="text")
+        panel.add('''<input class="input-medium" name="pos%s" required pattern="\d+[\d,]*\.?\d*[mMkK]*">'''
+                  % pos_num)
         panel.add("""<p class="help-block">3000000 = 3,000,000 = 3m = 3M = 3000k = 3KK</p>""")
         helper.close_control(panel)
     panel.script(type="text/javascript")
@@ -77,6 +78,56 @@ def indexPage(form):
     panel.div.close()  # control group
     panel.form.close()
     panel.div.close()
+    chromo_sizes = {}
+    for string, integer in twolocus.CHROMO_TO_INT.iteritems():
+        chromo_sizes[string] = tl.sizes[integer-1]
+    panel.script('''
+    var chromoSizes = %s;
+    ''' % json.dumps(chromo_sizes), type="text/javascript")
+    panel.script('''
+    function parsePosition(string) {
+        string = string.replace(',','').toLowerCase();
+        var pos = parseFloat(string);
+        var units = '';
+        var char
+        for (var i = 0; i < string.length; i++) {
+            char = string[i];
+            if (char == 'm' || char == 'k') {
+                pos = parseFloat(string.substring(0, i));
+                units = string.substring(i);
+                break;
+            }
+        }
+        for (i = 0; i < units.length; i++) {
+            char = units[i];
+            if (char == 'k') {
+                pos *= 1000;
+            }
+            if (char == 'm') {
+                pos *= 1000000;
+            }
+        }
+        return Math.floor(pos);
+    }
+
+    function isValidIndex(chromosome, position) {
+        return (chromosome in chromoSizes) && (0 <= position) && (position <= chromoSizes[chromosome]);
+    }
+
+    $("form").submit(function(event) {
+        var chrom, pos;
+        isValidInput = true;
+        for (var i = 1; i <= 2; i++) {
+            chrom = document.getElementsByName('chrom' + i)[0].value;
+            pos = parsePosition(document.getElementsByName('pos' + i)[0].value);
+            if (!isValidIndex(chrom, pos)) {
+                alert("Position " + i + " exceeds chromosome length");
+                isValidInput = false;
+            }
+        }
+        return %s(event) && isValidInput;
+    });
+    ''' % has_strains, type="text/javascript")
     return panel
 
 
@@ -96,7 +147,6 @@ def countMatrixResponse(form):
     positions = []
     chroms = []
     for pos_num in xrange(2):
-        # TODO: error checking
         positions.append(parse_position(form.getvalue('pos' + str(pos_num + 1))))
         chroms.append(form.getvalue('chrom' + str(pos_num + 1)))
     # print json.dumps(tl.sources_at_point_pair(chroms[0], positions[0], chroms[1], positions[1], strains),

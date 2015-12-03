@@ -53,6 +53,23 @@ def link_css_and_js(panel):
 
 
 def strain_set_selector(panel, tl, set_id=''):
+    validation_func = "hasSelectedStrains" + set_id
+    panel.script('''
+    function %s (event) {
+        var strainInputs = document.getElementsByClassName("chosen %s");
+        var strainInput, j;
+        for (var i = 0; i < strainInputs.length; i++) {
+            strainInput = strainInputs.item(i);
+            for (j = 0; j < strainInput.length; j++) {
+                if (strainInput[j].selected) {
+                    return true;
+                }
+            }
+        }
+        alert("No strains selected");
+        return false;
+    }
+    ''' % (validation_func, set_id), type="text/javascript")
     opened_group_div = False
     for group, text, value, strains in STRAIN_SETS:
         # uncomment the following to add in CC reference
@@ -66,7 +83,8 @@ def strain_set_selector(panel, tl, set_id=''):
             panel.add(text)
             panel.label.close()
             panel.div(_class="controls")
-            panel.add("""<select data-placeholder=%s name=%s multiple="multiple" class="chosen">""" % (text, value + set_id))
+            panel.add("""<select data-placeholder=%s name=%s multiple="multiple" class="chosen %s">""" %
+                      (text, value + set_id, set_id))
             for strain in strains:
                 if tl.is_available(strain):
                     panel.option(strain, value=strain)
@@ -74,6 +92,7 @@ def strain_set_selector(panel, tl, set_id=''):
             panel.div.close()
     if opened_group_div:
         panel.div.close()
+    return validation_func
 
 
 def select_all_buttons(panel):

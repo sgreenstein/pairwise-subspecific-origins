@@ -26,7 +26,7 @@ from collections import OrderedDict, Counter
 CHROMO_TO_INT = {}
 for x in xrange(1, 23):
     CHROMO_TO_INT[str(x)] = x
-# CHROMO_TO_INT['X'] = 20
+CHROMO_TO_INT['X'] = 20
 CHROMO_TO_INT['Y'] = 21
 CHROMO_TO_INT['MT'] = 22
 
@@ -425,8 +425,6 @@ def main():
     # print len(tl.list_available_strains())
     # tl.preprocess(['cc_origins.csv'])
     # tl.preprocess(['ccv_origins.csv'])
-    # print tl.is_available('CHMU/LeJ')
-    # exit()
     classical = [s for s in
                  ["129P1/ReJ",  # "129P3/J", "129S1SvlmJ", "129S6", "129T2/SvEmsJ", "129X1/SvJ", "A/J", "A/WySnJ",
                   "AEJ/GnLeJ", "AEJ/GnRk", "AKR/J", "ALR/LtJ", "ALS/LtJ", "BALB/cByJ", "BALB/cJ", "BDP/J", "BPH/2J",
