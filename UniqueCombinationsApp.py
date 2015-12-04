@@ -45,7 +45,7 @@ def indexPage(form):
 
 
 def uniqueCombosResponse(form):
-    print "content-type: text/json\n"
+    # print "content-type: text/json\n"
     tl = twolocus.TwoLocus('/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
     strains = [[], []]
     for set_num, set_id in enumerate(['background', 'foreground']):
@@ -55,14 +55,31 @@ def uniqueCombosResponse(form):
                 strains[set_num] += new_strains
             elif new_strains is not None:
                 strains[set_num].append(new_strains)
-    print '\n'.join(hex(line[0]) + ' ' + ' '.join(map(str, line[1:])) for line in tl.unique_combos(strains[0], strains[1]))
-    # print json.dumps(tl.unique_combos(strains[0], strains[1]), cls=helper.NumpyEncoder)
+    # print '\n'.join(hex(line[0]) + ' ' + ' '.join(map(str, line[1:])) for line in tl.unique_combos(strains[0], strains[1]))
+    data = json.dumps(tl.unique_combos(strains[0], strains[1]), cls=helper.NumpyEncoder)
+    # data = '0'
     # panel = markup.page()
-    # panel.iframe(src='../sgreens/pairwise_origins/pairwiseGenome.html', width="100%", height="1000px")
+    # panel.iframe(src='../sgreens/pairwise_origins/pairwiseGenome.html', chartWidth="100%", chartHeight="1000px")
     # return panel
     # print "content-type: text/html\n"
     # with open('../sgreens/pairwise_origins/pairwiseGenome.html') as fp:
-    #     print fp.read()
+    #     print fp.read()<!DOCTYPE html>
+    print "content-type: text/html\n"
+    print '''
+<!DOCTYPE html>
+<meta charset="utf-8">
+<div style="text-align: center">
+<svg class="chart" style="display: inline-block;"></svg>
+</div>
+<script src="//d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+<script type=text/javascript>
+var data = %s;
+var chrom_offsets = %s;
+var chrom_sizes = %s;
+</script>
+<script src="../sgreens/pairwise_origins/pairwiseGenome.js" charset="utf-8"></script>
+        ''' % (data, json.dumps(tl.offsets, cls=helper.NumpyEncoder), json.dumps(tl.sizes, cls=helper.NumpyEncoder))
     return None
 
 

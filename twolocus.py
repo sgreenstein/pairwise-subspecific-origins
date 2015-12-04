@@ -404,7 +404,7 @@ class TwoLocus:
         uniquities = np.logical_and(background == np.max(background), np.logical_not(foreground))
         for combo in xrange(subspecies.NUM_SUBSPECIES):
             combo_uniquities = np.where(uniquities[combo])
-            combo_color = subspecies.to_color(combo)
+            combo_color = subspecies.to_color(combo, ordinal=True)
             for i, j in zip(combo_uniquities[0], combo_uniquities[1]):
                 output.append([
                     combo_color,
