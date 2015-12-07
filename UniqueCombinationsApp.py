@@ -71,8 +71,11 @@ def uniqueCombosResponse(form):
 <div style="text-align: center">
 <svg class="chart" style="display: inline-block;"></svg>
 </div>
-<script src="//d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<div id="slider"></div>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
+<script src="//d3js.org/d3.v3.min.js" charset="utf-8"></script>
 <script type=text/javascript>
 var data = %s;
 var chrom_offsets = %s;
