@@ -1,5 +1,3 @@
-//var data = [[0, 3013441, 126105206, 154919602, 155064859], [0xff, 3013441, 126105206, 155064859, 155065655]];
-//var data = [[0, 0, 5, 2, 10], [0xff, 5, 10, 1, 2]];
 //var genome_end = 10;
 
 // constant indices into each array element of data
@@ -13,9 +11,40 @@ var color_scale = 20;
 
 var COARSE_CUTOFF = 10000000;  // anything with a dimension smaller than this will be filtered
 
-var coarse_data = data.filter( function (d) {
+var genome_length = chrom_offsets[chrom_offsets.length-1];
+
+var chart_height = 1000;
+var chart_width = 1500;
+
+var chart = d3.select(".chart")
+    .attr("width", chart_width)
+    .attr("height", chart_height);
+
+var chart_group = chart.append("g");
+
+var chrom_group = chart_group.append("g").attr("id", "chrom_group");
+var unique_group = chart_group.append("g").attr("id", "unique_group");
+
+var coarse_data = all_data.filter( function (d) {
     return (d[PROX_END] - d[PROX_START] > COARSE_CUTOFF) && (d[DIST_END] - d[DIST_START] > COARSE_CUTOFF)
 });
+
+function dataForChromPair(prox_target, dist_target) {
+    var filteredData = [];
+    var i = 0;
+    var d = all_data[i];
+    // get to data for right chrom pair
+    while ((d[PROX_START] < chrom_offsets[prox_target] || d[DIST_START] < chrom_offsets[dist_target]) && i < all_data.length-1) {
+        i++;
+        d = all_data[i];
+    }
+    while (d[PROX_START] < chrom_offsets[prox_target+1] && d[DIST_START] < chrom_offsets[dist_target+1] && i < all_data.length-1) {
+        filteredData.push(d);
+        i++;
+        d = all_data[i];
+    }
+    return filteredData;
+}
 
 function flattenIndex(i, j) {
     return (i * chrom_sizes.length) + j;
@@ -40,8 +69,8 @@ prox_chrom = 0;
 dist_chrom = 0;
 var area = 0;
 var d;
-for (i = 0; i < data.length; i++) {
-    d = data[i];
+for (i = 0; i < all_data.length; i++) {
+    d = all_data[i];
     while (d[PROX_START] > chrom_offsets[prox_chrom+1]) {
         prox_chrom++;
         dist_chrom = 0;
@@ -69,11 +98,11 @@ function rgbColorString(r, g, b) {
 }
 
 function scale(pos) {
-    return (pos * chart_height) / chrom_offsets[chrom_offsets.length-1];
+    return (pos * chart_height) / genome_length;
 }
 
 function colorChroms() {
-    d3.selectAll(".chrom")
+    chrom_group.selectAll("rect")
         .attr("fill", function (d, k) {
             var areas = unique_areas[k];
             var chrom_indices = unflattenIndex(k);
@@ -98,40 +127,47 @@ function colorChroms() {
                 return Math.round(c * alpha)
             });
             return rgbColorString(max_rgb[0] + whiteness, max_rgb[1] + whiteness, max_rgb[2] + whiteness);
-        })
-        .attr('myattr', color_scale);
+        });
 }
 
-var chart_height = 1000;
-var chart_width = 1500;
+function drawUniquities(data) {
+    var uniquities = unique_group.selectAll("rect")
+        .data(data, function (d) { return d[PROX_START].toString() + d[DIST_START]});
+    uniquities.exit().remove();
+    uniquities.enter().append("rect")
+        .attr("transform", function (d) {
+            return "translate(" + scale(d[PROX_START]) + "," + scale(d[DIST_START]) + ")";
+        })
+        .attr("width", function (d) {
+            return scale(d[PROX_END] - d[PROX_START]);
+        })
+        .attr("height", function (d) {
+            return scale(d[DIST_END] - d[DIST_START]);
+        })
+        .attr("fill", function (d) {
+            return hexColorString(d[COLOR]);
+        })
+}
 
-var chart = d3.select(".chart")
-    .attr("width", chart_width)
-    .attr("height", chart_height)
-    .call(d3.behavior.zoom().on("zoom", function () {
-        chart.attr("transform", "translate(" + d3.event.translate + ")" + "scale(" + d3.event.scale + ")")
-    }))
-    .append("g");
+drawUniquities(coarse_data);
 
-var uniquities = chart.selectAll("g")
-    .data(coarse_data)
-    .enter().append("g")
-    .attr("transform", function(d) { return "translate(" + scale(d[PROX_START]) + "," + scale(d[DIST_START]) + ")"; });
-
-uniquities.append("rect")
-    .attr("width", function(d) { return scale(d[PROX_END] - d[PROX_START]); })
-    .attr("height", function(d) { return scale(d[DIST_END] - d[DIST_START]); })
-    .attr("fill", function(d) { return hexColorString(d[COLOR]); });
-
-var chromo_rect = chart.selectAll("g")
+var chromo_rect = chrom_group.selectAll("rect")
     .data(chromo_pairs)
-    .enter().append("g")
+    .enter().append("rect")
     .attr("transform", function (d, k) {
         var chrom_indices = unflattenIndex(k);
         return "translate(" + scale(chrom_offsets[chrom_indices[0]]) + "," + scale(chrom_offsets[chrom_indices[1]]) + ")";
-    });
-
-chromo_rect.append("rect")
+    })
+    .on('mouseover', function (d) {
+        d3.select(this).attr("stroke", "black");
+    })
+    .on('mouseout', function (d) {
+        d3.select(this).attr("stroke", null);
+    })
+    .on('click', function (d, k) {
+        var chrom_indices = unflattenIndex(k);
+        zoomToChromPair(chrom_indices[0], chrom_indices[1]);
+    })
     .attr("width", function (d, k) {
         var chrom_indices = unflattenIndex(k);
         return scale(chrom_sizes[chrom_indices[0]]);
@@ -139,11 +175,26 @@ chromo_rect.append("rect")
     .attr("height", function (d, k) {
         var chrom_indices = unflattenIndex(k);
         return scale(chrom_sizes[chrom_indices[1]]);
-    })
-    .attr("class", "chrom");
+    });
+
 
 colorChroms();
 
+function zoomToChromPair(i, j) {
+    var zoom_scale = Math.min(genome_length / chrom_sizes[i],
+        genome_length / chrom_sizes[j]);
+    var x = -scale(chrom_offsets[i]) * zoom_scale;
+    var y = -scale(chrom_offsets[j]) * zoom_scale;
+    chart_group.attr("transform",
+            "translate(" + x + "," + y + ")scale(" + zoom_scale + ")");
+    var zoom = d3.behavior.zoom().translate([x, y]).scale(zoom_scale);
+    chart.call(zoom.on("zoom", function () {
+        chart_group.attr("transform", "translate(" + d3.event.translate + ")" + "scale(" + d3.event.scale + ")")
+    }));
+    chromo_rect.attr("display", "None");
+    chrom_group.selectAll("rect").on("click", null);
+    drawUniquities(dataForChromPair(i, j));
+}
 
 $("#slider").slider(
     {
