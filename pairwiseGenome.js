@@ -118,15 +118,22 @@ function drawChroms() {
         .on('mouseover', function (d, k) {
             d3.select(this).attr("stroke", "black");
             var chrom_indices = unflattenIndex(k);
+            chart_group.select("#x-axis > g:nth-child(" + (chrom_indices[0]+1) + ") > rect")
+                .attr("fill", "lightgrey");
+            chart_group.select("#y-axis > g:nth-child(" + (chrom_indices[1]+1) + ") > rect")
+                .attr("fill", "lightgrey");
         })
-        .on('mouseout', function (d) {
+        .on('mouseout', function (d, k) {
             d3.select(this).attr("stroke", null);
-            chart_group.selectAll
+            var chrom_indices = unflattenIndex(k);
+            chart_group.select("#x-axis > g:nth-child(" + (chrom_indices[0]+1) + ") > rect")
+                .attr("fill", "None");
+            chart_group.select("#y-axis > g:nth-child(" + (chrom_indices[1]+1) + ") > rect")
+                .attr("fill", "None");
         })
         .on('click', function (d, k) {
             var chrom_indices = unflattenIndex(k);
             zoomToChromPair(chrom_indices[0], chrom_indices[1]);
-            console.log(d3.event)
         })
         .attr("width", function (d, k) {
             var chrom_indices = unflattenIndex(k);
@@ -170,20 +177,39 @@ function colorChroms() {
 function drawAxes() {
     var groups = x_axis.selectAll("text")
         .data(chrom_names)
-        .enter().append("g");
-    //groups.append("")
+        .enter().append("g")
+        .attr("transform", function (d, i) {
+            return "translate(" + translate(chrom_offsets[i]) + ",0)";
+        });
+    groups.append("rect")
+        .attr("height", margin)
+        .attr("width", function (d, i) {
+            return scale(chrom_sizes[i])
+        })
+        .attr("fill", "None");
+    groups.append("text")
+        .text(function (d) {return d;})
+        .attr("alignment-baseline", "before-edge")
+        .attr("text-anchor", "middle")
+        .attr("transform", function (d, i) {
+            return "translate(" + scale(chrom_sizes[i] / 2) + ",0)";
+        });
+    groups = y_axis.selectAll("text")
+        .data(chrom_names)
+        .enter().append("g")
+        .attr("transform", function (d, i) {
+            return "translate(0," + translate(chrom_offsets[i]) + ")";
+        });
+    groups.append("rect")
+        .attr("width", margin)
+        .attr("height", function (d, i) {
+            return scale(chrom_sizes[i])
+        })
+        .attr("fill", "None");
     groups.append("text")
         .text(function (d) {return d;})
         .attr("transform", function (d, i) {
-            return "translate(" + translate((chrom_offsets[i] + chrom_offsets[i+1]) / 2) + ",12)";
-        })
-        .attr("text-anchor", "middle");
-    y_axis.selectAll("text")
-        .data(chrom_names)
-        .enter().append("text")
-        .text(function (d) {return d;})
-        .attr("transform", function (d, i) {
-            return "translate(0," + translate((chrom_offsets[i] + chrom_offsets[i+1]) / 2) + ")";
+            return "translate(0," + scale(chrom_sizes[i] / 2) + ")";
         });
 }
 
