@@ -22,15 +22,9 @@ from scipy import stats
 from time import clock
 from collections import OrderedDict, Counter
 
+INT_TO_CHROMO = range(20) + ['X', 'Y', 'MT']
 # integer representations of chromosomes
-CHROMO_TO_INT = {}
-for x in xrange(1, 23):
-    CHROMO_TO_INT[str(x)] = x
-CHROMO_TO_INT['X'] = 20
-CHROMO_TO_INT['Y'] = 21
-CHROMO_TO_INT['MT'] = 22
-
-INT_TO_CHROMO = {v: k for k, v in CHROMO_TO_INT.iteritems()}
+CHROMO_TO_INT = {string: integer for integer, string in enumerate(INT_TO_CHROMO)}
 
 # chromosome sizes (mm9 coordinates)
 CHROMO_SIZES = [197195432, 181748087, 159599783, 155630120, 152537259,
