@@ -38,43 +38,17 @@ function dataForChromPair(prox_target, dist_target) {
             });
 }
 
-function flattenIndex(i, j) {
-    return (i * chrom_sizes.length) + j;
-}
-
 function unflattenIndex(k) {
     return [Math.floor(k / chrom_sizes.length), k % chrom_sizes.length];
 }
 
-// divide data by chromosome combo
-var prox_chrom;
-var dist_chrom;
-var chromo_pairs = [];
-var unique_areas = [];
+var chrom_pair_offsets = [];
 // initialize data structure for each chrom pair
 // first two dimensions are flattened
-for (var i = 0; i < Math.pow(chrom_sizes.length, 2); i++) {
-    chromo_pairs.push([]);
-    unique_areas.push({});
-}
-prox_chrom = 0;
-dist_chrom = 0;
-var area = 0;
-var d;
-for (i = 0; i < all_data.length; i++) {
-    d = all_data[i];
-    while (d[PROX_START] > chrom_offsets[prox_chrom+1]) {
-        prox_chrom++;
-        dist_chrom = 0;
+for (var i = 0; i < chrom_sizes.length; i++) {
+    for (var j = 0; j < chrom_sizes.length; j++) {
+        chrom_pair_offsets.push([chrom_offsets[i], chrom_offsets[j]]);
     }
-    while (d[DIST_START] > chrom_offsets[dist_chrom+1]) {
-        dist_chrom++;
-    }
-    var k = flattenIndex(prox_chrom, dist_chrom);
-    chromo_pairs[k].push(d);
-    area = (d[PROX_END] - d[PROX_START]) * (d[DIST_END] - d[DIST_START]);
-    unique_areas[k][d[COLOR]] =
-        (unique_areas[k][d[COLOR]] || 0) + area;
 }
 
 function hexColorString(num) {
@@ -100,12 +74,12 @@ function translate(pos) {
 
 function drawChroms() {
     return chrom_group.selectAll("rect")
-        .data(chromo_pairs)
+        .data(chrom_pair_offsets)
         .enter().append("rect")
-        .attr("transform", function (d, k) {
-            var chrom_indices = unflattenIndex(k);
-            return "translate(" + translate(chrom_offsets[chrom_indices[0]]) + "," + translate(chrom_offsets[chrom_indices[1]]) + ")";
+        .attr("transform", function (d) {
+            return "translate(" + translate(d[0]) + "," + translate(d[1]) + ")";
         })
+        .attr("fill", "white")
         .on('mouseover', function (d, k) {
             d3.select(this).attr("stroke", "black");
             var chrom_indices = unflattenIndex(k);
@@ -248,7 +222,7 @@ function zoomToChromPair(i, j) {
 
 drawUniquities(coarse_data);
 var chromo_rect = drawChroms();
-colorChroms();
+//colorChroms();
 drawAxes();
 
 $("#zoomout").hide().click( function () {
@@ -262,15 +236,15 @@ $("#zoomout").hide().click( function () {
     }
 );
 
-$("#slider").slider(
-    {
-        value:color_scale,
-        min:1,
-        max:10000,
-        step:10,
-        slide: function(event) {
-            color_scale = $("#slider").slider("value");
-            colorChroms();
-        }
-    }
-);
+//$("#slider").slider(
+//    {
+//        value:color_scale,
+//        min:1,
+//        max:10000,
+//        step:10,
+//        slide: function(event) {
+//            color_scale = $("#slider").slider("value");
+//            colorChroms();
+//        }
+//    }
+//);
