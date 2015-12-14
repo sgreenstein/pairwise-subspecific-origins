@@ -81,9 +81,11 @@ _COLORS = {DOM: 0x0000ff, MUS: 0xff0000, CAS: 0x00ff00}
 _ORDINAL_COLORS = []
 
 for combo in iter_combos():
-        color = _COLORS[proximal(combo)] | (_COLORS[distal(combo)] / 2)
-        _ORDINAL_COLORS.append(color)
-        _COLORS[combo] = color
+    prox_color = _COLORS[proximal(combo)]
+    dist_color = _COLORS[distal(combo)]
+    color = ((prox_color >> 1) & prox_color) + ((dist_color >> 1) & dist_color)
+    _ORDINAL_COLORS.append(color)
+    _COLORS[combo] = color
 
 
 cpdef int to_color(integer, ordinal=False):

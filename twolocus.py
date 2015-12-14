@@ -395,8 +395,8 @@ class TwoLocus:
         background = self.build_pairwise_matrix(background_strains, elem_intervals)
         foreground = self.build_pairwise_matrix(foreground_strains, elem_intervals)
         output = []
-        uniquities = np.logical_and(background == np.max(background), np.logical_not(foreground))
-        for combo in xrange(subspecies.NUM_SUBSPECIES):
+        uniquities = np.logical_and(foreground == len(foreground_strains), np.logical_not(background))
+        for combo in xrange(subspecies.NUM_SUBSPECIES**2):
             combo_uniquities = np.where(uniquities[combo])
             combo_color = subspecies.to_color(combo, ordinal=True)
             for i, j in zip(combo_uniquities[0], combo_uniquities[1]):

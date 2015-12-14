@@ -32,20 +32,10 @@ var coarse_data = all_data.filter( function (d) {
 });
 
 function dataForChromPair(prox_target, dist_target) {
-    var filteredData = [];
-    var i = 0;
-    var d = all_data[i];
-    // get to data for right chrom pair
-    while ((d[PROX_START] < chrom_offsets[prox_target] || d[DIST_START] < chrom_offsets[dist_target]) && i < all_data.length-1) {
-        i++;
-        d = all_data[i];
-    }
-    while (d[PROX_START] < chrom_offsets[prox_target+1] && d[DIST_START] < chrom_offsets[dist_target+1] && i < all_data.length-1) {
-        filteredData.push(d);
-        i++;
-        d = all_data[i];
-    }
-    return filteredData;
+    return all_data.filter(function (d) {
+            return (d[PROX_START] >= chrom_offsets[prox_target] && d[PROX_END] <= chrom_offsets[prox_target+1] &&
+                d[DIST_START] >= chrom_offsets[dist_target] && d[DIST_END] <= chrom_offsets[dist_target+1]);
+            });
 }
 
 function flattenIndex(i, j) {
@@ -63,7 +53,7 @@ var chromo_pairs = [];
 var unique_areas = [];
 // initialize data structure for each chrom pair
 // first two dimensions are flattened
-for (var i = 0; i < Math.pow(chrom_sizes.length - 1, 2); i++) {
+for (var i = 0; i < Math.pow(chrom_sizes.length, 2); i++) {
     chromo_pairs.push([]);
     unique_areas.push({});
 }
@@ -80,10 +70,11 @@ for (i = 0; i < all_data.length; i++) {
     while (d[DIST_START] > chrom_offsets[dist_chrom+1]) {
         dist_chrom++;
     }
-    chromo_pairs[flattenIndex(prox_chrom, dist_chrom)].push(d);
+    var k = flattenIndex(prox_chrom, dist_chrom);
+    chromo_pairs[k].push(d);
     area = (d[PROX_END] - d[PROX_START]) * (d[DIST_END] - d[DIST_START]);
-    unique_areas[flattenIndex(prox_chrom, dist_chrom)][d[COLOR]] =
-        (unique_areas[flattenIndex(prox_chrom, dist_chrom)][d[COLOR]] || 0) + area;
+    unique_areas[k][d[COLOR]] =
+        (unique_areas[k][d[COLOR]] || 0) + area;
 }
 
 function hexColorString(num) {
@@ -165,10 +156,10 @@ function colorChroms() {
                 }
             }
             var max_rgb = rgb(max_color);
-            var alpha = 2 / (1 + Math.exp(-1 * color_scale * total_unique_area / chrom_area)) - 1;
-            var whiteness = Math.round((1 - alpha) * 0x0000ff);
+            var intensity = 2 / (1 + Math.exp(-1 * color_scale * total_unique_area / chrom_area)) - 1;
+            var whiteness = Math.round((1 - intensity) * 0xff);
             max_rgb = max_rgb.map(function (c) {
-                return Math.round(c * alpha)
+                return Math.round(c * intensity)
             });
             return rgbColorString(max_rgb[0] + whiteness, max_rgb[1] + whiteness, max_rgb[2] + whiteness);
         });
@@ -243,7 +234,13 @@ function zoomToChromPair(i, j) {
     var y = -translate(chrom_offsets[j]) * zoom_scale;
     chart_group.attr("transform",
         "translate(" + x + "," + y + ")scale(" + zoom_scale + ")");
-    var zoom = d3.behavior.zoom().translate([x, y]).scale(zoom_scale);
+    console.log(x);
+    var zoom = d3.behavior.zoom()
+        .xExtent([x, x + chrom_sizes[i]])// TODO: fix xExtent, yExtent
+        .yExtent([y, y + chrom_sizes[j]])
+        .scaleExtent([zoom_scale, 10000])
+        .translate([x, y])
+        .scale(zoom_scale);
     chart.call(zoom.on("zoom", function () {
         chart_group.attr("transform", "translate(" + d3.event.translate + ")" + "scale(" + d3.event.scale + ")")
     }));
