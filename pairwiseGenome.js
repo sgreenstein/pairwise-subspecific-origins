@@ -57,7 +57,7 @@ function hexColorString(num) {
 }
 
 function rgb(num) {
-    return [num >> 24, (num & 0x00ff00) >> 12, num & 0x0000ff];
+    return [num >> 16, (num & 0x00ff00) >> 8, num & 0x0000ff];
 }
 
 function rgbColorString(r, g, b) {
