@@ -250,7 +250,7 @@ class TwoLocus:
         for i in xrange(len(elem_intervals)):
             # only upper triangle is meaningful
             for j in xrange(i + 1, len(elem_intervals)):
-                output.append(sources[:subspecies.NUM_SUBSPECIES, i, j] + [
+                output.append(list(sources[:subspecies.NUM_SUBSPECIES, i, j]) + [
                     # proximal interval
                     elem_intervals[i-1],
                     elem_intervals[i],
