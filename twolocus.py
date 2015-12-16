@@ -22,7 +22,7 @@ from scipy import stats
 from time import clock
 from collections import OrderedDict, Counter
 
-INT_TO_CHROMO = range(20) + ['X', 'Y', 'MT']
+INT_TO_CHROMO = [str(integer) for integer in range(20)] + ['X', 'Y', 'MT']
 # integer representations of chromosomes
 CHROMO_TO_INT = {string: integer for integer, string in enumerate(INT_TO_CHROMO)}
 

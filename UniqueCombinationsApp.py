@@ -56,11 +56,11 @@ def uniqueCombosResponse(form):
             elif new_strains is not None:
                 strains[set_num].append(new_strains)
     # print '\n'.join(hex(line[0]) + ' ' + ' '.join(map(str, line[1:])) for line in tl.unique_combos(strains[0], strains[1]))
-    # data = json.dumps(tl.unique_combos(strains[0], strains[1]), cls=helper.NumpyEncoder)
+    data = json.dumps(tl.unique_combos(strains[0], strains[1]), cls=helper.NumpyEncoder)
     # with open('unique.json', "w+") as fp:
-    with open('unique.json', "r") as fp:
+    # with open('unique.json', "r") as fp:
         # json.dump(tl.unique_combos(strains[0], strains[1]), fp, cls=helper.NumpyEncoder)
-        data = json.load(fp)
+        # data = json.load(fp)
     # data = '0'
     # panel = markup.page()
     # panel.iframe(src='../sgreens/pairwise_origins/pairwiseGenome.html', chartWidth="100%", chartHeight="1000px")
