@@ -1,5 +1,6 @@
 import numpy as np
 import json
+from pairwise_origins import twolocus
 
 with open('../sgreens/pairwise_origins/strain_sets.json') as fp:
     STRAIN_SETS = json.load(fp)
@@ -155,3 +156,33 @@ def select_all_buttons(panel):
     });
     """)
     panel.script.close()
+
+
+def visualize_genome(data, tl):
+    """ Creates the pairwise genome visualization
+    :param data: data to visualize
+    :param tl: twolocus instance
+    """
+    print "content-type: text/html\n"
+    print '''
+<!DOCTYPE html>
+<meta charset="utf-8">
+<div style="text-align: center">
+<svg class="chart" style="display: inline-block;"></svg>
+</div>
+<div id="slider"></div>
+<button id="zoomout">Zoom out</button>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
+<script src="//d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script src="../sgreens/pairwise_origins/d3-zoom-pan-extent.js"></script>
+<script type=text/javascript>
+var all_data = %s;
+var chrom_offsets = %s;
+var chrom_sizes = %s;
+var chrom_names = %s
+</script>
+<script src="../sgreens/pairwise_origins/pairwiseGenome.js" charset="utf-8"></script>
+        ''' % (data, json.dumps(tl.offsets, cls=NumpyEncoder), json.dumps(tl.sizes, cls=NumpyEncoder),
+               json.dumps(twolocus.INT_TO_CHROMO[1:-1]))

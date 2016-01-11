@@ -68,30 +68,7 @@ def uniqueCombosResponse(form):
     # print "content-type: text/html\n"
     # with open('../sgreens/pairwise_origins/pairwiseGenome.html') as fp:
     #     print fp.read()<!DOCTYPE html>
-    print "content-type: text/html\n"
-    print '''
-<!DOCTYPE html>
-<meta charset="utf-8">
-<div style="text-align: center">
-<svg class="chart" style="display: inline-block;"></svg>
-</div>
-<div id="slider"></div>
-<button id="zoomout">Zoom out</button>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
-<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css">
-<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
-<script src="//d3js.org/d3.v3.min.js" charset="utf-8"></script>
-<script src="../sgreens/pairwise_origins/d3-zoom-pan-extent.js"></script>
-<script type=text/javascript>
-var all_data = %s;
-var chrom_offsets = %s;
-var chrom_sizes = %s;
-var chrom_names = %s
-</script>
-<script src="../sgreens/pairwise_origins/pairwiseGenome.js" charset="utf-8"></script>
-        ''' % (data, json.dumps(tl.offsets, cls=helper.NumpyEncoder), json.dumps(tl.sizes, cls=helper.NumpyEncoder),
-               json.dumps(twolocus.INT_TO_CHROMO[1:-1]))
-    return None
+    helper.visualize_genome(data, tl)
 
 
 if __name__ == '__main__':
