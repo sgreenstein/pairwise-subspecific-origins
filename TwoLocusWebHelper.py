@@ -178,14 +178,38 @@ def visualize_genome(data, tl, num_samples=None):
 <script src="//d3js.org/d3.v3.min.js" charset="utf-8"></script>
 <script src="../sgreens/pairwise_origins/d3-zoom-pan-extent.js"></script>
 <script type=text/javascript>
+var is_ss_origins = false;
 var all_data = %s;
 var chrom_offsets = %s;
 var chrom_sizes = %s;
 var chrom_names = %s
+</script>
     ''' % (data, json.dumps(tl.offsets, cls=NumpyEncoder), json.dumps(tl.sizes, cls=NumpyEncoder),
            json.dumps(twolocus.INT_TO_CHROMO[1:-1]))
     if num_samples is not None:
-        print 'var num_samples = %d' % num_samples
+        subspecies_names = ['Dom', 'Mus', 'Cas']
+        print '''
+<script type=text/javascript>
+is_ss_origins = true;
+var num_samples = %d
+</script>''' % num_samples
+        print '''
+<div id=origin_radios>
+    <table>
+        <tr><td></td><td></td><td colspan="3">Proximal</td></tr>
+        <tr>
+        <td></td><td></td>'''
+        for name in subspecies_names:
+            print '<td>%s</td>' % name
+        print '</tr>'
+        for i, name in enumerate(subspecies_names):
+            print '<tr><td>Distal</td>' if i == 1 else '<tr><td></td>'
+            print '<td>%s</td>' % name
+            for j in xrange(3):
+                print '''<td><input name=origin type="radio" value=%d"></td>''' % (i*3 + j)
+            print '</tr>'
+        print '''
+    </table>
+</div>'''
     print '''
-</script>
 <script src="../sgreens/pairwise_origins/pairwiseGenome.js" charset="utf-8"></script>'''

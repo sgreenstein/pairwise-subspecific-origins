@@ -232,7 +232,7 @@ class TwoLocus:
         :param verbose: log progress
         :returns {strain combo: matrix of counts}, list of elementary interval ends
         """
-        output = [[] for i in xrange(subspecies.NUM_SUBSPECIES**2)]
+        output = [[] for _ in xrange(subspecies.NUM_SUBSPECIES**2)]
         for strain_name in strain_names:
             intervals, sources = self.sample_dict[strain_name]
             for i in xrange(len(intervals)):

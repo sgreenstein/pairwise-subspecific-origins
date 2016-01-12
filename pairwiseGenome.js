@@ -183,15 +183,15 @@ function drawRects(data) {
         .data(data, function (d) { return d[PROX_START].toString() + d[DIST_START]});
     rectangles.exit().remove();
     var color_function, alpha;
-    if (data.length && data[COLOR]) {
-        color_function = function (d) { return hexColorString(d[COLOR])};
-        alpha = null;
-    }
-    else {
+    if (is_ss_origins) {
         color_function = function () {
             return "#00ff00"; //TODO: return appropriate color based on radio buttons
         };
         alpha = 1 / num_samples;
+    }
+    else {
+        color_function = function (d) { return hexColorString(d[COLOR])};
+        alpha = null;
     }
     rectangles.enter().append("rect")
         .attr("transform", function (d) {
