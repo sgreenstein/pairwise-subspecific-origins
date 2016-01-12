@@ -232,32 +232,23 @@ class TwoLocus:
         :param verbose: log progress
         :returns {strain combo: matrix of counts}, list of elementary interval ends
         """
-        if verbose:
-            logging.basicConfig(level=logging.INFO)
-        logging.info('Loading intervals...')
-
-        interval_lists = []
+        output = [[] for i in xrange(subspecies.NUM_SUBSPECIES**2)]
         for strain_name in strain_names:
-            interval_lists.append(list(self.sample_dict[strain_name][0]))
-
-        # compute elementary intervals
-        logging.info("Computing elementary intervals...")
-        elem_intervals = self.make_elementary_intervals(interval_lists)
-        logging.info("%d total intervals", len(elem_intervals))
-
-        output = []
-        sources = self.build_pairwise_matrix(strain_names, elem_intervals)
-        for i in xrange(len(elem_intervals)):
-            # only upper triangle is meaningful
-            for j in xrange(i + 1, len(elem_intervals)):
-                output.append(list(sources[:subspecies.NUM_SUBSPECIES, i, j]) + [
-                    # proximal interval
-                    elem_intervals[i-1],
-                    elem_intervals[i],
-                    elem_intervals[j-1],
-                    elem_intervals[j]
-                    ])
-        return output
+            intervals, sources = self.sample_dict[strain_name]
+            for i in xrange(len(intervals)):
+                # only upper triangle is meaningful
+                if subspecies.is_known(sources[i]):
+                    for j in xrange(i + 1, len(intervals)):
+                        if subspecies.is_known(sources[j]):
+                            output[subspecies.to_ordinal(subspecies.combine(sources[i], sources[j]))].append([
+                                # proximal interval
+                                intervals[i-1],
+                                intervals[i],
+                                # distal interval
+                                intervals[j-1],
+                                intervals[j]
+                            ])
+        return output, [subspecies.to_color(i) for i in xrange(subspecies.NUM_SUBSPECIES)]
 
     def calculate_genomic_area(self, counts, intervals):
         """
@@ -401,13 +392,13 @@ class TwoLocus:
             combo_color = subspecies.to_color(combo, ordinal=True)
             for i, j in zip(combo_uniquities[0], combo_uniquities[1]):
                 output.append([
-                    combo_color,
                     # proximal interval start, end
                     elem_intervals[i - 1],
                     elem_intervals[i],
                     # distal interval start, end
                     elem_intervals[j - 1],
-                    elem_intervals[j]
+                    elem_intervals[j],
+                    combo_color
                 ])
         return output
 
