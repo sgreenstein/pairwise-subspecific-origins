@@ -158,7 +158,7 @@ def select_all_buttons(panel):
     panel.script.close()
 
 
-def visualize_genome(data, tl):
+def visualize_genome(data, tl, num_samples=None):
     """ Creates the pairwise genome visualization
     :param data: data to visualize
     :param tl: twolocus instance
@@ -182,7 +182,10 @@ var all_data = %s;
 var chrom_offsets = %s;
 var chrom_sizes = %s;
 var chrom_names = %s
+    ''' % (data, json.dumps(tl.offsets, cls=NumpyEncoder), json.dumps(tl.sizes, cls=NumpyEncoder),
+           json.dumps(twolocus.INT_TO_CHROMO[1:-1]))
+    if num_samples is not None:
+        print 'var num_samples = %d' % num_samples
+    print '''
 </script>
-<script src="../sgreens/pairwise_origins/pairwiseGenome.js" charset="utf-8"></script>
-        ''' % (data, json.dumps(tl.offsets, cls=NumpyEncoder), json.dumps(tl.sizes, cls=NumpyEncoder),
-               json.dumps(twolocus.INT_TO_CHROMO[1:-1]))
+<script src="../sgreens/pairwise_origins/pairwiseGenome.js" charset="utf-8"></script>'''

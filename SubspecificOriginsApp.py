@@ -44,7 +44,7 @@ def indexPage(form):
 
 
 def originsVisualizationResponse(form):
-    print "content-type: text/json\n"
+    # print "content-type: text/json\n"
     tl = twolocus.TwoLocus('/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
     strains = []
     for _, _, value, _ in helper.STRAIN_SETS:
@@ -53,7 +53,9 @@ def originsVisualizationResponse(form):
             strains += new_strains
         elif new_strains is not None:
             strains.append(new_strains)
-    print json.dumps(tl.pairwise_frequencies(strains), cls=helper.NumpyEncoder)
+    data, colors = tl.pairwise_frequencies(strains)
+    helper.visualize_genome(data[0], tl, len(strains))
+    # print json.dumps(data, cls=helper.NumpyEncoder)
 
 
 if __name__ == '__main__':

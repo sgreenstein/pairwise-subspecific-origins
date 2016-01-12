@@ -1,9 +1,9 @@
 // constant indices into each array element of data
-var COLOR = 0;
-var PROX_START = 1;
-var PROX_END = 2;
-var DIST_START = 3;
-var DIST_END = 4;
+var COLOR = 4;
+var PROX_START = 0;
+var PROX_END = 1;
+var DIST_START = 2;
+var DIST_END = 3;
 
 var color_scale = 20;
 
@@ -23,7 +23,7 @@ var chart = d3.select(".chart")
 var chart_group = chart.append("g");
 
 var chrom_group = chart_group.append("g").attr("id", "chrom_group");
-var unique_group = chart_group.append("g").attr("id", "unique_group");
+var rect_group = chart_group.append("g").attr("id", "rect_group");
 var x_axis = chart_group.append("g").attr("id", "x-axis");
 var y_axis = chart_group.append("g").attr("id", "y-axis");
 
@@ -178,11 +178,22 @@ function drawAxes() {
         });
 }
 
-function drawUniquities(data) {
-    var uniquities = unique_group.selectAll("rect")
+function drawRects(data) {
+    var rectangles = rect_group.selectAll("rect")
         .data(data, function (d) { return d[PROX_START].toString() + d[DIST_START]});
-    uniquities.exit().remove();
-    uniquities.enter().append("rect")
+    rectangles.exit().remove();
+    var color_function, alpha;
+    if (data.length && data[COLOR]) {
+        color_function = function (d) { return hexColorString(d[COLOR])};
+        alpha = null;
+    }
+    else {
+        color_function = function () {
+            return "#00ff00"; //TODO: return appropriate color based on radio buttons
+        };
+        alpha = 1 / num_samples;
+    }
+    rectangles.enter().append("rect")
         .attr("transform", function (d) {
             return "translate(" + translate(d[PROX_START]) + "," + translate(d[DIST_START]) + ")";
         })
@@ -192,16 +203,15 @@ function drawUniquities(data) {
         .attr("height", function (d) {
             return scale(d[DIST_END] - d[DIST_START]);
         })
-        .attr("fill", function (d) {
-            return hexColorString(d[COLOR]);
-        })
+        .attr("fill", color_function)
+        .attr("fill-opacity", alpha);
 }
 
 function zoomToChromPair(i, j) {
     $("#slider").hide();
     $("#zoomout").show();
     chromo_rect.attr("display", "None");
-    drawUniquities(dataForChromPair(i, j));
+    drawRects(dataForChromPair(i, j));
     var zoom_scale = Math.min(genome_length / chrom_sizes[i],
         genome_length / chrom_sizes[j]);
     var x = -translate(chrom_offsets[i]) * zoom_scale;
@@ -220,7 +230,7 @@ function zoomToChromPair(i, j) {
     }));
 }
 
-drawUniquities(coarse_data);
+drawRects(coarse_data);
 var chromo_rect = drawChroms();
 //colorChroms();
 drawAxes();
@@ -232,7 +242,7 @@ $("#zoomout").hide().click( function () {
         chart_group.attr("transform", null);
         var zoom = d3.behavior.zoom().on('zoom', null);
         chart.call(zoom.on("zoom", null));
-        drawUniquities(coarse_data);
+        drawRects(coarse_data);
     }
 );
 
