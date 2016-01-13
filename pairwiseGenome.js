@@ -22,8 +22,8 @@ var chart = d3.select(".chart")
 
 var chart_group = chart.append("g");
 
-var chrom_group = chart_group.append("g").attr("id", "chrom_group");
 var rect_group = chart_group.append("g").attr("id", "rect_group");
+var chrom_group = chart_group.append("g").attr("id", "chrom_group");
 var x_axis = chart_group.append("g").attr("id", "x-axis");
 var y_axis = chart_group.append("g").attr("id", "y-axis");
 
@@ -101,7 +101,7 @@ function drawChroms() {
         .attr("transform", function (j, i) {
             return "translate(" + translate(chrom_offsets[i]) + "," + translate(chrom_offsets[j]) + ")";
         })
-        .attr("fill", "white")
+        .attr("fill-opacity", "0")
         .on('mouseover', function (j, i) {
             d3.select(this).attr("stroke", "black");
             chart_group.select("#x-axis > g:nth-child(" + (i+1) + ") > rect")
@@ -196,9 +196,6 @@ function drawAxes() {
 }
 
 function drawRects(data) {
-    var rectangles = rect_group.selectAll("rect")
-        .data(data, function (d) { return d[PROX_START].toString() + d[DIST_START]});
-    rectangles.exit().remove();
     var color_function, alpha;
     if (is_ss_origins) {
         color_function = function () {
@@ -210,7 +207,10 @@ function drawRects(data) {
         color_function = function (d) { return hexColorString(d[COLOR])};
         alpha = null;
     }
-    rectangles.enter().append("rect")
+    var rectangles = rect_group.selectAll("rect")
+        .data(data, function (d) { return d[PROX_START].toString() + d[DIST_START]});
+    rectangles.enter().append("rect").attr("fill-opacity", alpha);
+    rectangles
         .attr("transform", function (d) {
             return "translate(" + translate(d[PROX_START]) + "," + translate(d[DIST_START]) + ")";
         })
@@ -220,8 +220,8 @@ function drawRects(data) {
         .attr("height", function (d) {
             return scale(d[DIST_END] - d[DIST_START]);
         })
-        .attr("fill", color_function)
-        .attr("fill-opacity", alpha);
+        .attr("fill", color_function);
+    rectangles.exit().remove();
 }
 
 function zoomToChromPair(i, j) {
