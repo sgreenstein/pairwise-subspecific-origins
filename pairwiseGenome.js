@@ -27,12 +27,25 @@ var rect_group = chart_group.append("g").attr("id", "rect_group");
 var x_axis = chart_group.append("g").attr("id", "x-axis");
 var y_axis = chart_group.append("g").attr("id", "y-axis");
 
-var coarse_data = all_data.filter( function (d) {
-    return (d[PROX_END] - d[PROX_START] > COARSE_CUTOFF) && (d[DIST_END] - d[DIST_START] > COARSE_CUTOFF)
-});
+var visible_data;
+
+if (is_ss_origins) {
+    visible_data = all_data[0];
+}
+else {
+    visible_data = all_data;
+}
+
+var coarse_data;
+function filter_coarse_data () {
+    coarse_data = visible_data.filter(function (d) {
+        return (d[PROX_END] - d[PROX_START] > COARSE_CUTOFF) && (d[DIST_END] - d[DIST_START] > COARSE_CUTOFF)
+    });
+}
+filter_coarse_data();
 
 function dataForChromPair(prox_target, dist_target) {
-    return all_data.filter(function (d) {
+    return visible_data.filter(function (d) {
             return (d[PROX_START] >= chrom_offsets[prox_target] && d[PROX_END] <= chrom_offsets[prox_target+1] &&
                 d[DIST_START] >= chrom_offsets[dist_target] && d[DIST_END] <= chrom_offsets[dist_target+1]);
             });
@@ -46,7 +59,7 @@ var chrom_pair_offsets = [];
 // initialize data structure for each chrom pair
 // first two dimensions are flattened
 for (var i = 0; i < chrom_sizes.length; i++) {
-    for (var j = 0; j < chrom_sizes.length; j++) {
+    for (var j = i; j < chrom_sizes.length; j++) {
         chrom_pair_offsets.push([chrom_offsets[i], chrom_offsets[j]]);
     }
 }
@@ -73,40 +86,44 @@ function translate(pos) {
 }
 
 function drawChroms() {
-    return chrom_group.selectAll("rect")
-        .data(chrom_pair_offsets)
+    return chrom_group.selectAll("g")
+        .data(chrom_offsets.slice(0, -1))
+        .enter().append("g")
+        .selectAll("rect")
+        .data(function (d, i) {
+            var range = [];
+            for (j = 0; j <= i; j++) {
+                range.push(i);
+            }
+            return range;
+        })
         .enter().append("rect")
-        .attr("transform", function (d) {
-            return "translate(" + translate(d[0]) + "," + translate(d[1]) + ")";
+        .attr("transform", function (j, i) {
+            return "translate(" + translate(chrom_offsets[i]) + "," + translate(chrom_offsets[j]) + ")";
         })
         .attr("fill", "white")
-        .on('mouseover', function (d, k) {
+        .on('mouseover', function (j, i) {
             d3.select(this).attr("stroke", "black");
-            var chrom_indices = unflattenIndex(k);
-            chart_group.select("#x-axis > g:nth-child(" + (chrom_indices[0]+1) + ") > rect")
+            chart_group.select("#x-axis > g:nth-child(" + (i+1) + ") > rect")
                 .attr("fill", "lightgrey");
-            chart_group.select("#y-axis > g:nth-child(" + (chrom_indices[1]+1) + ") > rect")
+            chart_group.select("#y-axis > g:nth-child(" + (j+1) + ") > rect")
                 .attr("fill", "lightgrey");
         })
-        .on('mouseout', function (d, k) {
+        .on('mouseout', function (j, i) {
             d3.select(this).attr("stroke", null);
-            var chrom_indices = unflattenIndex(k);
-            chart_group.select("#x-axis > g:nth-child(" + (chrom_indices[0]+1) + ") > rect")
+            chart_group.select("#x-axis > g:nth-child(" + (i+1) + ") > rect")
                 .attr("fill", "None");
-            chart_group.select("#y-axis > g:nth-child(" + (chrom_indices[1]+1) + ") > rect")
+            chart_group.select("#y-axis > g:nth-child(" + (j+1) + ") > rect")
                 .attr("fill", "None");
         })
-        .on('click', function (d, k) {
-            var chrom_indices = unflattenIndex(k);
-            zoomToChromPair(chrom_indices[0], chrom_indices[1]);
+        .on('click', function (j, i) {
+            zoomToChromPair(i, j);
         })
-        .attr("width", function (d, k) {
-            var chrom_indices = unflattenIndex(k);
-            return scale(chrom_sizes[chrom_indices[0]]);
+        .attr("width", function (j, i) {
+            return scale(chrom_sizes[i]);
         })
-        .attr("height", function (d, k) {
-            var chrom_indices = unflattenIndex(k);
-            return scale(chrom_sizes[chrom_indices[1]]);
+        .attr("height", function (j, i) {
+            return scale(chrom_sizes[j]);
         });
 }
 
@@ -185,7 +202,7 @@ function drawRects(data) {
     var color_function, alpha;
     if (is_ss_origins) {
         color_function = function () {
-            return "#00ff00"; //TODO: return appropriate color based on radio buttons
+            return hexColorString(source_colors[$("input:radio:checked").attr("value")]);
         };
         alpha = 1 / num_samples;
     }
@@ -243,6 +260,15 @@ $("#zoomout").hide().click( function () {
         var zoom = d3.behavior.zoom().on('zoom', null);
         chart.call(zoom.on("zoom", null));
         drawRects(coarse_data);
+    }
+);
+
+$("input:radio").change(
+    function (e) {
+        var source = e.target.value;
+        visible_data = all_data[source];
+        filter_coarse_data();
+        drawRects(coarse_data)
     }
 );
 

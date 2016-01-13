@@ -1,6 +1,9 @@
 import numpy as np
 import json
 from pairwise_origins import twolocus
+import pyximport
+pyximport.install()
+from pairwise_origins import subspeciesCython as subspecies
 
 with open('../sgreens/pairwise_origins/strain_sets.json') as fp:
     STRAIN_SETS = json.load(fp)
@@ -187,18 +190,19 @@ var chrom_names = %s
     ''' % (data, json.dumps(tl.offsets, cls=NumpyEncoder), json.dumps(tl.sizes, cls=NumpyEncoder),
            json.dumps(twolocus.INT_TO_CHROMO[1:-1]))
     if num_samples is not None:
-        subspecies_names = ['Dom', 'Mus', 'Cas']
+        subspecies_names = [subspecies.to_string(ss) for ss in subspecies.iter_subspecies()]
         print '''
-<script type=text/javascript>
-is_ss_origins = true;
-var num_samples = %d
-</script>''' % num_samples
+        <script type=text/javascript>
+        is_ss_origins = true;
+        var num_samples = %d;
+        var source_colors = %s;
+        </script>''' % (num_samples, json.dumps([subspecies.to_color(i) for i in subspecies.iter_combos()]))
         print '''
-<div id=origin_radios>
-    <table>
-        <tr><td></td><td></td><td colspan="3">Proximal</td></tr>
-        <tr>
-        <td></td><td></td>'''
+        <div id=origin_radios>
+            <table>
+                <tr><td></td><td></td><td colspan="3">Proximal</td></tr>
+                <tr>
+                <td></td><td></td>'''
         for name in subspecies_names:
             print '<td>%s</td>' % name
         print '</tr>'
@@ -206,10 +210,11 @@ var num_samples = %d
             print '<tr><td>Distal</td>' if i == 1 else '<tr><td></td>'
             print '<td>%s</td>' % name
             for j in xrange(3):
-                print '''<td><input name=origin type="radio" value=%d"></td>''' % (i*3 + j)
+                print '''<td><input name=origin type="radio" value="%d" %s></td>''' %\
+                      (i*3 + j, 'checked="checked"' if i+j == 0 else '')
             print '</tr>'
         print '''
-    </table>
-</div>'''
+            </table>
+        </div>'''
     print '''
 <script src="../sgreens/pairwise_origins/pairwiseGenome.js" charset="utf-8"></script>'''

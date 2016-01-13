@@ -54,7 +54,7 @@ def originsVisualizationResponse(form):
         elif new_strains is not None:
             strains.append(new_strains)
     data, colors = tl.pairwise_frequencies(strains)
-    helper.visualize_genome(data[0], tl, len(strains))
+    helper.visualize_genome(data, tl, len(strains))
     # print json.dumps(data, cls=helper.NumpyEncoder)
 
 
