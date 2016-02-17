@@ -11,8 +11,8 @@ var COARSE_CUTOFF = 10000000;  // anything with a dimension smaller than this wi
 
 var genome_length = chrom_offsets[chrom_offsets.length-1];
 
-var chart_height = 1000;
-var chart_width = 1500;
+var chart_height = 800;
+var chart_width = 800;
 
 var margin = 17;
 
@@ -22,10 +22,12 @@ var chart = d3.select(".chart")
 
 var chart_group = chart.append("g");
 
-var rect_group = chart_group.append("g").attr("id", "rect_group");
-var chrom_group = chart_group.append("g").attr("id", "chrom_group");
 var x_axis = chart_group.append("g").attr("id", "x-axis");
 var y_axis = chart_group.append("g").attr("id", "y-axis");
+var rect_group = chart_group.append("g").attr("id", "rect_group");
+var chrom_group = chart_group.append("g").attr("id", "chrom_group");
+var x_chrom_labels = chart_group.append("g").attr("id", "x_chrom_labels");
+var y_chrom_labels = chart_group.append("g").attr("id", "y_chrom_labels");
 
 var visible_data;
 
@@ -55,15 +57,6 @@ function unflattenIndex(k) {
     return [Math.floor(k / chrom_sizes.length), k % chrom_sizes.length];
 }
 
-var chrom_pair_offsets = [];
-// initialize data structure for each chrom pair
-// first two dimensions are flattened
-for (var i = 0; i < chrom_sizes.length; i++) {
-    for (var j = i; j < chrom_sizes.length; j++) {
-        chrom_pair_offsets.push([chrom_offsets[i], chrom_offsets[j]]);
-    }
-}
-
 function hexColorString(num) {
     var color = "00000" + num.toString(16);
     return "#" + color.substr(color.length - 6);
@@ -77,13 +70,12 @@ function rgbColorString(r, g, b) {
     return "rgb(" + r + "," + g + "," + b + ")";
 }
 
-function scale(pos) {
-    return (pos * (chart_height - margin)) / genome_length;
-}
-
-function translate(pos) {
-    return (pos * (chart_height - margin)) / genome_length + margin;
-}
+var translate = d3.scale.linear();
+translate.domain([0, genome_length]);
+translate.range([margin, chart_width]);
+var scale = d3.scale.linear();
+scale.domain([0, genome_length]);
+scale.range([0, chart_width - margin]);
 
 function drawChroms() {
     return chrom_group.selectAll("g")
@@ -104,16 +96,16 @@ function drawChroms() {
         .attr("fill-opacity", "0")
         .on('mouseover', function (j, i) {
             d3.select(this).attr("stroke", "black");
-            chart_group.select("#x-axis > g:nth-child(" + (i+1) + ") > rect")
+            chart_group.select("#x_chrom_labels > g:nth-child(" + (i+1) + ") > rect")
                 .attr("fill", "lightgrey");
-            chart_group.select("#y-axis > g:nth-child(" + (j+1) + ") > rect")
+            chart_group.select("#y_chrom_labels > g:nth-child(" + (j+1) + ") > rect")
                 .attr("fill", "lightgrey");
         })
         .on('mouseout', function (j, i) {
             d3.select(this).attr("stroke", null);
-            chart_group.select("#x-axis > g:nth-child(" + (i+1) + ") > rect")
+            chart_group.select("#x_chrom_labels > g:nth-child(" + (i+1) + ") > rect")
                 .attr("fill", "None");
-            chart_group.select("#y-axis > g:nth-child(" + (j+1) + ") > rect")
+            chart_group.select("#y_chrom_labels > g:nth-child(" + (j+1) + ") > rect")
                 .attr("fill", "None");
         })
         .on('click', function (j, i) {
@@ -156,8 +148,8 @@ function colorChroms() {
         });
 }
 
-function drawAxes() {
-    var groups = x_axis.selectAll("text")
+function drawChromLabels() {
+    var groups = x_chrom_labels.selectAll("text")
         .data(chrom_names)
         .enter().append("g")
         .attr("transform", function (d, i) {
@@ -176,7 +168,7 @@ function drawAxes() {
         .attr("transform", function (d, i) {
             return "translate(" + scale(chrom_sizes[i] / 2) + ",0)";
         });
-    groups = y_axis.selectAll("text")
+    groups = y_chrom_labels.selectAll("text")
         .data(chrom_names)
         .enter().append("g")
         .attr("transform", function (d, i) {
@@ -224,6 +216,33 @@ function drawRects(data) {
     rectangles.exit().remove();
 }
 
+function drawAxes(i, j, zoom_scale) {
+    var x_ticks = [];
+    for (var genome_pos = 0; genome_pos <= chrom_sizes[i]; genome_pos += 300000000 / zoom_scale) {
+        x_ticks.push(genome_pos);
+    }
+    var x_tick_groups = d3.select("#x-axis").selectAll("g").data(x_ticks);
+    var new_groups = x_tick_groups.enter().append("g");
+    new_groups.append("text").attr("text-anchor", "middle");
+    new_groups.append("line");
+    x_tick_groups
+        .attr("transform", function (d) {
+            return "translate(" + translate(d + chrom_offsets[i]) + "," + translate(chrom_offsets[j]) + ")";
+        })
+        .selectAll("text")
+        .text(function (d) {
+            return (d / 1000000) + "m";
+        })
+        .attr("font-size", (16 / zoom_scale).toString());
+    x_tick_groups
+        .selectAll("line")
+        .attr("x1", 0)
+        .attr("x2", 0)
+        .attr("y1", 0)
+        .attr("y2", 1)
+        .attr("style", "stroke:#000;stroke-width:0.05");
+}
+
 function zoomToChromPair(i, j) {
     $("#slider").hide();
     $("#zoomout").show();
@@ -235,22 +254,22 @@ function zoomToChromPair(i, j) {
     var y = -translate(chrom_offsets[j]) * zoom_scale;
     chart_group.attr("transform",
         "translate(" + x + "," + y + ")scale(" + zoom_scale + ")");
-    console.log(x);
     var zoom = d3.behavior.zoom()
-        .xExtent([x, x + chrom_sizes[i]])// TODO: fix xExtent, yExtent
-        .yExtent([y, y + chrom_sizes[j]])
+        //.xExtent([x, x + chrom_sizes[i]])// TODO: fix xExtent, yExtent
+        //.yExtent([y, y + chrom_sizes[j]])
         .scaleExtent([zoom_scale, 10000])
         .translate([x, y])
         .scale(zoom_scale);
     chart.call(zoom.on("zoom", function () {
         chart_group.attr("transform", "translate(" + d3.event.translate + ")" + "scale(" + d3.event.scale + ")")
     }));
+    drawAxes(i, j, zoom_scale);
 }
 
 drawRects(coarse_data);
 var chromo_rect = drawChroms();
 //colorChroms();
-drawAxes();
+drawChromLabels();
 
 $("#zoomout").hide().click( function () {
         $("#slider").show();

@@ -225,30 +225,43 @@ class TwoLocus:
                     breaks[col] + 1:breaks[col + 1] + 1] += 1
         return source_counts
 
-    def pairwise_frequencies(self, strain_names, include_unknown=False, verbose=False):
+    def pairwise_frequencies(self, strain_names):
         """ For every locus pair and every label pair, count the number of strains which have those
         labels at those pairs of loci.
         :param strain_names: list of strain names to analyze (must be a subset of the output from preprocess())
-        :param verbose: log progress
-        :returns {strain combo: matrix of counts}, list of elementary interval ends
         """
-        output = [[] for _ in xrange(subspecies.NUM_SUBSPECIES**2)]
+        output = [[[], [], [], []] for _ in xrange(subspecies.NUM_SUBSPECIES**2)]
         for strain_name in strain_names:
             intervals, sources = self.sample_dict[strain_name]
             for i in xrange(len(intervals)):
                 # only upper triangle is meaningful
                 if subspecies.is_known(sources[i]):
-                    for j in xrange(i + 1, len(intervals)):
+                    for j in xrange(i, len(intervals)):
                         if subspecies.is_known(sources[j]):
-                            output[subspecies.to_ordinal(subspecies.combine(sources[i], sources[j]))].append([
-                                # proximal interval
-                                intervals[i-1],
-                                intervals[i],
-                                # distal interval
-                                intervals[j-1],
-                                intervals[j]
-                            ])
-        return output, [subspecies.to_color(i) for i in xrange(subspecies.NUM_SUBSPECIES)]
+                            combo_output = output[subspecies.to_ordinal(subspecies.combine(sources[i], sources[j]))]
+                            combo_output[0].append(intervals[i-1])
+                            combo_output[1].append(intervals[i])
+                            combo_output[2].append(intervals[j-1])
+                            combo_output[3].append(intervals[j])
+        return output, [subspecies.to_color(i, True) for i in xrange(subspecies.NUM_SUBSPECIES**2)]
+
+    def absent_regions(self, strain_names):
+        """ finds regions in which no samples have a certain combo
+        :param strain_names: list of strain names to analyze (must be a subset of the output from preprocess())
+        """
+        elem_intervals = self.make_elementary_intervals(
+            [self.sample_dict[sn][0] for sn in strain_names])
+        background = self.build_pairwise_matrix(strain_names, elem_intervals)
+        output = [[[], [], [], []] for _ in xrange(subspecies.NUM_SUBSPECIES**2)]
+        for combo in xrange(subspecies.NUM_SUBSPECIES**2):
+            for i in xrange(len(elem_intervals)):
+                for j in xrange(i, len(elem_intervals)):
+                    if not background[combo, i, j]:
+                        output[combo][0].append(elem_intervals[i-1])
+                        output[combo][1].append(elem_intervals[i])
+                        output[combo][2].append(elem_intervals[j-1])
+                        output[combo][3].append(elem_intervals[j])
+        return output
 
     def calculate_genomic_area(self, counts, intervals):
         """
