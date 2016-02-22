@@ -387,6 +387,29 @@ class TwoLocus:
             hi = intervals1[index1]
         return lo, hi
 
+    def not_in_background(self, background_strains, foreground_strains):
+        """ finds combinations at interval pairs that are present in 1+ fg strains but is absent from the background
+        :param background_strains: list of strain names
+        :param foreground_strains: list of strain names
+        :return: json object containing interval pairs
+        """
+        output = [[[], [], [], [], []] for _ in xrange(subspecies.NUM_SUBSPECIES**2)]
+        for strain in foreground_strains:
+            elem_intervals = self.make_elementary_intervals(
+                [self.sample_dict[sn][0] for sn in [strain] + foreground_strains])
+            background_absent = np.logical_not(self.build_pairwise_matrix(background_strains, elem_intervals))
+            foreground = self.build_pairwise_matrix([strain], elem_intervals)
+            uniquities = np.logical_and(foreground, background_absent)
+            for combo in xrange(subspecies.NUM_SUBSPECIES**2):
+                combo_uniquities = np.where(uniquities[combo])
+                for i, j in zip(combo_uniquities[0], combo_uniquities[1]):
+                    output[combo][0].append(elem_intervals[i-1])
+                    output[combo][1].append(elem_intervals[i])
+                    output[combo][2].append(elem_intervals[j-1])
+                    output[combo][3].append(elem_intervals[j])
+                    output[combo][4].append(strain)
+        return output, [subspecies.to_color(combo, ordinal=True) for combo in xrange(subspecies.NUM_SUBSPECIES**2)]
+
     # @profile
     def unique_combos(self, background_strains, foreground_strains):
         """ finds combinations at interval pairs that is absent from the background but shared by all foreground samples
