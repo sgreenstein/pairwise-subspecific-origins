@@ -13,7 +13,7 @@ if __name__ != '__main__':
     from markup import oneliner as element
     import cgAdmin
 
-this_file = "NotInBackground"
+this_file = "NotInBackgroundDev"
 
 
 def indexPage(form):
@@ -53,6 +53,20 @@ def visualizationResponse(form):
     plot_file = 'not_in_background.html'
     bokeh.plotting.output_file(plot_file)
     tl = twolocus.TwoLocus('/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
+    panel.script(type="text/javascript")
+    panel.add('var offsets = ' + json.dumps(tl.offsets, cls=helper.NumpyEncoder) + ';')
+    panel.add('var chromoToInt = ' + json.dumps(twolocus.CHROMO_TO_INT, cls=helper.NumpyEncoder) + ';')
+    panel.add('''
+    function getActiveCombo() {
+        var inputs = document.getElementsByClassName('data-radio');
+        for (var i = 0; i < inputs.length; i++) {
+            if (inputs[i].checked) {
+                return i;
+            }
+        }
+    }
+    ''')
+    panel.script.close()
     strains = [[], []]
     for set_num, set_id in enumerate(['background', 'foreground']):
         for _, _, value, _ in helper.STRAIN_SETS:
@@ -61,23 +75,19 @@ def visualizationResponse(form):
                 strains[set_num] += new_strains
             elif new_strains is not None:
                 strains[set_num].append(new_strains)
-    # with open('/playpen/preloaded_data.json') as fp:
-    #     data = json.load(fp)
-    # with open('/playpen/preloaded_colors.json') as fp:
-    #     colors = json.load(fp)
-    data, colors = tl.not_in_background(strains[0], strains[1])
+    with open('/playpen/preloaded_data.json') as fp:
+        data = json.load(fp)
+    with open('/playpen/preloaded_colors.json') as fp:
+        colors = json.load(fp)
+    # data, colors = tl.not_in_background(strains[0], strains[1])
     # with open('/playpen/preloaded_data.json', 'w+') as fp:
     # json.dump(data, fp, cls=helper.NumpyEncoder)
     # with open('/playpen/preloaded_colors.json', 'w+') as fp:
     # json.dump(colors, fp, cls=helper.NumpyEncoder)
     plot = bokeh.plotting.figure(y_range=bokeh.models.Range1d(start=tl.offsets[-1] + 10e7, end=0),
-                                 tools=['pan', 'wheel_zoom', 'box_zoom', 'save', 'reset', 'resize',
-                                        bokeh.models.HoverTool(names=['regions'],
-                                                               tooltips=[('Sample', '@sample'),
-                                                                         ('Proximal start', '@proximal_start'),
-                                                                         ('Proximal size', '@width'),
-                                                                         ('Distal start', '@distal_start'),
-                                                                         ('Distal size', '@height')])])
+                                 tools=[bokeh.models.HoverTool(names=['chroms'], tooltips=[('Proximal', '@proximal'),
+                                                                                           ('Distal', '@distal')]),
+                                        'reset', 'box_zoom'])
     plot_chroms(plot, tl)
     combo_sources = []
     for i, (combo_data, color) in enumerate(zip(data, colors)):
@@ -92,10 +102,24 @@ def visualizationResponse(form):
             height=height,
             proximal_start=combo_data[0],
             distal_start=combo_data[2],
+            proximal_end=combo_data[1],
+            distal_end=combo_data[3],
             sample=combo_data[4]
         )))
         plot.rect('x', 'y', 'active_width', 'active_height', color="#" + hex(color)[2:].zfill(6),
                   source=combo_sources[-1], line_alpha=0, fill_alpha=1.0 / len(strains[1]), name='regions')
+    inset_source = bokeh.models.ColumnDataSource(data=dict(
+        x=[],
+        y=[],
+        width=[],
+        height=[],
+        proximal_start=[],
+        proximal_end=[],
+        distal_start=[],
+        distal_end=[],
+        sample=[]
+    ))
+    source_dict = {'source' + str(i): source for i, source in enumerate(combo_sources)}
     radio_callback = bokeh.models.CustomJS(args={'source' + str(i): source for i, source in enumerate(combo_sources)},
                                            code='var sources = [' + ','.join(
                                                'source' + str(i) for i in xrange(len(combo_sources))) + '];' + '''
@@ -115,8 +139,69 @@ def visualizationResponse(form):
             }
             return(false);
             ''')
+    source_dict['inset_source'] = inset_source
+    chrom_callback = bokeh.models.CustomJS(args=source_dict, code='var sources = [' + ','.join(
+        'source' + str(i) for i in xrange(len(combo_sources))) + '];' + '''
+    var source = sources[getActiveCombo()];
+    var index = cb_obj.get('selected')['1d'].indices;
+    var chroms = cb_obj.get('data');
+    var proximal = chromoToInt[chroms.proximal[index]];
+    var distal = chromoToInt[chroms.distal[index]];
+    var i = 0;
+    data = source.get('data');
+    inset_data = inset_source.get('data');
+    var fields = ['x', 'proximal_start', 'proximal_end', 'distal_start', 'y', 'distal_end', 'width', 'height', 'sample'];
+    var field, start_index;
+    for (var j = 0; j < fields.length; j++) {
+        inset_data[fields[j]] = [];
+    }
+    offset_distal = function (position) {
+                        return position - offsets[proximal - 1];
+                };
+    offset_proximal = function (position) {
+                        return position - offsets[distal - 1];
+                };
+    while (data.proximal_start[i] < offsets[proximal - 1]) {
+        i++;  // get through data before proximal chrom
+    }
+    while (data.proximal_start[i] < offsets[proximal]) {
+        while (data.distal_start[i] < offsets[distal - 1] || data.distal_start[i] > offsets[distal]) {
+            i++;  // get through data before/after distal chrom
+        }
+        start_index = i;
+        while (data.proximal_start[i] < offsets[proximal] && data.distal_start[i] < offsets[distal]) {
+            i++;  // get through data for this chrom pair
+        }
+        for (var j = 0; j < 3; j++) {
+            field = fields[j];
+            inset_data[field] = inset_data[field].concat(data[field].slice(start_index, i).map(offset_distal));
+        }
+        for (var j = 3; j < 6; j++) {
+            field = fields[j];
+            inset_data[field] = inset_data[field].concat(data[field].slice(start_index, i).map(offset_proximal));
+        }
+        for (var j = 6; j < 9; j++) {
+            field = fields[j];
+            inset_data[field] = inset_data[field].concat(data[field].slice(start_index, i));
+        }
+    }
+    debugger;
+    inset_source.trigger('change');
+    ''')
+    plot.add_tools(bokeh.models.TapTool(names=['chroms'], callback=chrom_callback))
+    inset = bokeh.plotting.figure(y_range=bokeh.models.DataRange1d(flipped=True, bounds='auto'),
+                                  x_range=bokeh.models.DataRange1d(bounds='auto'),
+                                  tools=['pan', 'wheel_zoom', 'box_zoom', 'save', 'reset', 'resize',
+                                         bokeh.models.HoverTool(names=['regions'],
+                                                                tooltips=[('Sample', '@sample'),
+                                                                          ('Proximal start', '@proximal_start'),
+                                                                          ('Proximal end', '@proximal_end'),
+                                                                          ('Distal start', '@distal_start'),
+                                                                          ('Distal end', '@distal_end')])])
+    inset.rect('x', 'y', 'width', 'height', color="black",
+               source=inset_source, line_alpha=0, fill_alpha=1.0 / len(strains[1]), name='regions')
     radio_button = bokeh.models.widgets.Button(label='', callback=radio_callback)
-    bokeh.plotting.show(bokeh.io.vform(plot, radio_button))
+    bokeh.plotting.show(bokeh.io.vform(bokeh.io.hplot(plot, inset), radio_button))
     with open(plot_file) as fp:
         panel.add(fp.read())
     button_callbacks(panel)
