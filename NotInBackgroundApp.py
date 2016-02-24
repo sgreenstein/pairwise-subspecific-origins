@@ -55,6 +55,7 @@ def visualizationResponse(form):
     tl = twolocus.TwoLocus('/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
     panel.script(type="text/javascript")
     panel.add('var offsets = ' + json.dumps(tl.offsets, cls=helper.NumpyEncoder) + ';')
+    panel.add('var sizes = ' + json.dumps(tl.sizes, cls=helper.NumpyEncoder) + ';')
     panel.add('var chromoToInt = ' + json.dumps(twolocus.CHROMO_TO_INT, cls=helper.NumpyEncoder) + ';')
     panel.add('''
     function getActiveCombo() {
@@ -121,8 +122,8 @@ def visualizationResponse(form):
         distal_end=[],
         sample=[]
     ))
-    inset = bokeh.plotting.figure(y_range=bokeh.models.DataRange1d(flipped=True, bounds='auto'),
-                                  x_range=bokeh.models.DataRange1d(bounds='auto'),
+    inset = bokeh.plotting.figure(y_range=bokeh.models.DataRange1d(flipped=True),
+                                  x_range=bokeh.models.DataRange1d(),
                                   tools=['pan', 'wheel_zoom', 'box_zoom', 'save', 'reset', 'resize',
                                          bokeh.models.HoverTool(names=['regions'],
                                                                 tooltips=[('Sample', '@sample'),
@@ -132,6 +133,8 @@ def visualizationResponse(form):
                                                                           ('Distal end', '@distal_end')])])
     inset.xaxis.axis_label="Dom"
     inset.yaxis.axis_label="Dom"
+    inset.xaxis[0].formatter = bokeh.models.NumeralTickFormatter(format='0.00a')
+    inset.yaxis[0].formatter = bokeh.models.NumeralTickFormatter(format='0.00a')
     source_dict = {'source' + str(i): source for i, source in enumerate(combo_sources)}
     source_dict['plot'] = plot
     source_dict['inset'] = inset
@@ -156,12 +159,16 @@ def visualizationResponse(form):
                 }
                 sources[i].trigger('change');
             }
-            plot.set('title', 'Proximal: ' + combos[Math.floor(selected_combo/3)] +
-                ', Distal: ' + combos[selected_combo%3])
-            var label = inset.get('left');
-            label[0].set('axis_label', combos[selected_combo%3]);
+            var distal_chrom = combos[selected_combo%3];
+            var proximal_chrom = combos[Math.floor(selected_combo/3)];
+            var label = plot.get('left');
+            label[0].set('axis_label', distal_chrom);
             label = inset.get('below');
-            label[0].set('axis_label', combos[Math.floor(selected_combo/3)]);
+            label[0].set('axis_label', proximal_chrom);
+            label = inset.get('left');
+            label[0].set('axis_label', distal_chrom);
+            label = inset.get('below');
+            label[0].set('axis_label', proximal_chrom);
             // clear inset
             inset.set('title', '');
             chrom_source.get('selected')['1d'] = {indices: []};
@@ -185,6 +192,7 @@ def visualizationResponse(form):
     inset_data = inset_source.get('data');
     var fields = ['x', 'proximal_start', 'proximal_end', 'distal_start', 'y', 'distal_end', 'width', 'height', 'sample'];
     var field, start_index;
+    // clear data
     for (var j = 0; j < fields.length; j++) {
         inset_data[fields[j]] = [];
     }
@@ -193,6 +201,8 @@ def visualizationResponse(form):
         inset_source.trigger('change');
         return(false);
     }
+
+    // set new data
     offset_distal = function (position) {
                         return position - offsets[proximal - 1];
                 };
@@ -223,7 +233,26 @@ def visualizationResponse(form):
             inset_data[field] = inset_data[field].concat(data[field].slice(start_index, i));
         }
     }
-    inset.set('title', 'Chr' + chroms.proximal[index] + ' x ' + 'Chr' + chroms.distal[index]);
+
+    // update labels
+    var prox_chrom = 'Chr' + chroms.proximal[index];
+    var dist_chrom = 'Chr' + chroms.distal[index];
+    inset.set('title', prox_chrom + ' x ' + dist_chrom);
+    var label = inset.get('left');
+    label[0].set('axis_label', label[0].get('axis_label').slice(0, 4) + ' ' + dist_chrom);
+    label = inset.get('below');
+    label[0].set('axis_label', label[0].get('axis_label').slice(0, 4) + ' ' + prox_chrom);
+
+    // set bounds
+    var max_size = Math.max(sizes[distal-1], sizes[proximal-1]);
+    var range = inset.get('x_range');
+    range.set('bounds', [0, max_size]);
+    range.set('start', 0);
+    range.set('end', max_size);
+    range = inset.get('y_range');
+    range.set('bounds', [0, max_size]);
+    range.set('start', max_size);
+    range.set('end', 0);
     inset_source.trigger('change');
     ''')
     plot.add_tools(bokeh.models.TapTool(names=['chroms'], callback=chrom_callback))
