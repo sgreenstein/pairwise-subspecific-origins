@@ -65,6 +65,7 @@ def visualizationResponse(form):
             }
         }
     }
+    var combos = ['Dom', 'Mus', 'Cas'];
     ''')
     panel.script.close()
     strains = [[], []]
@@ -86,9 +87,10 @@ def visualizationResponse(form):
     # json.dump(colors, fp, cls=helper.NumpyEncoder)
     plot = bokeh.plotting.figure(y_range=bokeh.models.Range1d(start=tl.offsets[-1] + 10e7, end=0),
                                  tools=[bokeh.models.HoverTool(names=['chroms'], tooltips=[('Proximal', '@proximal'),
-                                                                                           ('Distal', '@distal')]),
-                                        'reset', 'box_zoom'])
-    plot_chroms(plot, tl)
+                                                                                           ('Distal', '@distal')])])
+    plot.axis.visible = False
+    plot.grid.grid_line_color = None
+    chrom_source = plot_chroms(plot, tl)
     combo_sources = []
     for i, (combo_data, color) in enumerate(zip(data, colors)):
         width = np.subtract(combo_data[1], combo_data[0])
@@ -119,17 +121,34 @@ def visualizationResponse(form):
         distal_end=[],
         sample=[]
     ))
+    inset = bokeh.plotting.figure(y_range=bokeh.models.DataRange1d(flipped=True, bounds='auto'),
+                                  x_range=bokeh.models.DataRange1d(bounds='auto'),
+                                  tools=['pan', 'wheel_zoom', 'box_zoom', 'save', 'reset', 'resize',
+                                         bokeh.models.HoverTool(names=['regions'],
+                                                                tooltips=[('Sample', '@sample'),
+                                                                          ('Proximal start', '@proximal_start'),
+                                                                          ('Proximal end', '@proximal_end'),
+                                                                          ('Distal start', '@distal_start'),
+                                                                          ('Distal end', '@distal_end')])])
+    inset.xaxis.axis_label="Dom"
+    inset.yaxis.axis_label="Dom"
     source_dict = {'source' + str(i): source for i, source in enumerate(combo_sources)}
-    radio_callback = bokeh.models.CustomJS(args={'source' + str(i): source for i, source in enumerate(combo_sources)},
+    source_dict['plot'] = plot
+    source_dict['inset'] = inset
+    source_dict['chrom_source'] = chrom_source
+    source_dict['inset_source'] = inset_source
+    radio_callback = bokeh.models.CustomJS(args=source_dict,
                                            code='var sources = [' + ','.join(
                                                'source' + str(i) for i in xrange(len(combo_sources))) + '];' + '''
             var inputs = document.getElementsByClassName('data-radio');
             var data;
+            var selected_combo;
             for (var i = 0; i < inputs.length; i++) {
                 data = sources[i].get('data');
                 if (inputs[i].checked) {
                     data['active_width'] = data['width'];
                     data['active_height'] = data['height'];
+                    selected_combo = i;
                 }
                 else {
                     data['active_width'] = 'null';
@@ -137,9 +156,23 @@ def visualizationResponse(form):
                 }
                 sources[i].trigger('change');
             }
+            plot.set('title', 'Proximal: ' + combos[Math.floor(selected_combo/3)] +
+                ', Distal: ' + combos[selected_combo%3])
+            var label = inset.get('left');
+            label[0].set('axis_label', combos[selected_combo%3]);
+            label = inset.get('below');
+            label[0].set('axis_label', combos[Math.floor(selected_combo/3)]);
+            // clear inset
+            inset.set('title', '');
+            chrom_source.get('selected')['1d'] = {indices: []};
+            inset_data = inset_source.get('data');
+            var fields = ['x', 'proximal_start', 'proximal_end', 'distal_start', 'y', 'distal_end', 'width', 'height', 'sample'];
+            for (var j = 0; j < fields.length; j++) {
+                inset_data[fields[j]] = [];
+            }
+            inset_source.trigger('change');
             return(false);
             ''')
-    source_dict['inset_source'] = inset_source
     chrom_callback = bokeh.models.CustomJS(args=source_dict, code='var sources = [' + ','.join(
         'source' + str(i) for i in xrange(len(combo_sources))) + '];' + '''
     var source = sources[getActiveCombo()];
@@ -154,6 +187,11 @@ def visualizationResponse(form):
     var field, start_index;
     for (var j = 0; j < fields.length; j++) {
         inset_data[fields[j]] = [];
+    }
+    if (index.length == 0) {
+        inset.set('title', '');
+        inset_source.trigger('change');
+        return(false);
     }
     offset_distal = function (position) {
                         return position - offsets[proximal - 1];
@@ -185,19 +223,10 @@ def visualizationResponse(form):
             inset_data[field] = inset_data[field].concat(data[field].slice(start_index, i));
         }
     }
-    debugger;
+    inset.set('title', 'Chr' + chroms.proximal[index] + ' x ' + 'Chr' + chroms.distal[index]);
     inset_source.trigger('change');
     ''')
     plot.add_tools(bokeh.models.TapTool(names=['chroms'], callback=chrom_callback))
-    inset = bokeh.plotting.figure(y_range=bokeh.models.DataRange1d(flipped=True, bounds='auto'),
-                                  x_range=bokeh.models.DataRange1d(bounds='auto'),
-                                  tools=['pan', 'wheel_zoom', 'box_zoom', 'save', 'reset', 'resize',
-                                         bokeh.models.HoverTool(names=['regions'],
-                                                                tooltips=[('Sample', '@sample'),
-                                                                          ('Proximal start', '@proximal_start'),
-                                                                          ('Proximal end', '@proximal_end'),
-                                                                          ('Distal start', '@distal_start'),
-                                                                          ('Distal end', '@distal_end')])])
     inset.rect('x', 'y', 'width', 'height', color="black",
                source=inset_source, line_alpha=0, fill_alpha=1.0 / len(strains[1]), name='regions')
     radio_button = bokeh.models.widgets.Button(label='', callback=radio_callback)
@@ -254,6 +283,7 @@ def plot_chroms(plot, tl):
               text_font_size="10pt")
     plot.text(x=text_offsets, y=tl.offsets[-1] + 10e7, text=twolocus.INT_TO_CHROMO[1:],
               text_font_size="8pt")
+    return chrom_data_source
 
 
 def radio_buttons(panel):
@@ -262,12 +292,27 @@ def radio_buttons(panel):
     panel.tr()
     panel.td()
     panel.td.close()
+    panel.td()
+    panel.td.close()
+    panel.td(colspan=3)
+    panel.add('Distal')
+    panel.td.close()
+    panel.tr.close()
+    panel.tr()
+    panel.td()
+    panel.td.close()
+    panel.td()
+    panel.td.close()
     for distal in strains:
         panel.td(distal)
         panel.td.close()
     panel.tr.close()
     for i, proximal in enumerate(strains):
         panel.tr()
+        panel.td()
+        if i == 1:
+            panel.add('Proximal')
+        panel.td.close()
         panel.td(proximal)
         panel.td.close()
         for j, distal in enumerate(strains):
