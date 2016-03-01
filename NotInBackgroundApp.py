@@ -99,8 +99,6 @@ def visualizationResponse(form):
         combo_sources.append(bokeh.models.ColumnDataSource(data=dict(
             x=np.add(combo_data[0], width / 2),
             y=np.add(combo_data[2], height / 2),
-            active_width=width if i == 0 else 'null',
-            active_height=height if i == 0 else 'null',
             width=width,
             height=height,
             proximal_start=combo_data[0],
@@ -109,8 +107,9 @@ def visualizationResponse(form):
             distal_end=combo_data[3],
             sample=combo_data[4]
         )))
-        plot.rect('x', 'y', 'active_width', 'active_height', color="#" + hex(color)[2:].zfill(6),
-                  source=combo_sources[-1], line_alpha=0, fill_alpha=1.0 / len(strains[1]), name='regions')
+    combo_sources.append(bokeh.models.ColumnDataSource(data=combo_sources[0].data))
+    plot.rect('x', 'y', 'width', 'height', color="#" + hex(colors[0])[2:].zfill(6),
+              source=combo_sources[-1], line_alpha=0, fill_alpha=1.0 / len(strains[1]), name='regions')
     inset_source = bokeh.models.ColumnDataSource(data=dict(
         x=[],
         y=[],
@@ -131,8 +130,8 @@ def visualizationResponse(form):
                                                                           ('Proximal end', '@proximal_end'),
                                                                           ('Distal start', '@distal_start'),
                                                                           ('Distal end', '@distal_end')])])
-    inset.xaxis.axis_label="Dom"
-    inset.yaxis.axis_label="Dom"
+    inset.xaxis.axis_label = "Dom"
+    inset.yaxis.axis_label = "Dom"
     inset.xaxis[0].formatter = bokeh.models.NumeralTickFormatter(format='0.00a')
     inset.yaxis[0].formatter = bokeh.models.NumeralTickFormatter(format='0.00a')
     source_dict = {'source' + str(i): source for i, source in enumerate(combo_sources)}
@@ -144,20 +143,21 @@ def visualizationResponse(form):
                                            code='var sources = [' + ','.join(
                                                'source' + str(i) for i in xrange(len(combo_sources))) + '];' + '''
             var inputs = document.getElementsByClassName('data-radio');
+            var active_source = sources[sources.length-1];
+            var active_data = active_source.get('data');
             var data;
             var selected_combo;
+            var fields = ['x', 'proximal_start', 'proximal_end', 'distal_start', 'y', 'distal_end', 'width', 'height', 'sample'];
             for (var i = 0; i < inputs.length; i++) {
                 data = sources[i].get('data');
                 if (inputs[i].checked) {
-                    data['active_width'] = data['width'];
-                    data['active_height'] = data['height'];
-                    selected_combo = i;
+                    for (var j = 0; j < fields.length; j++) {
+                        active_data[fields[j]] = data[fields[j]];
+                        selected_combo = i;
+                    }
+                    active_source.trigger('change');
+                    break;
                 }
-                else {
-                    data['active_width'] = 'null';
-                    data['active_height'] = 'null';
-                }
-                sources[i].trigger('change');
             }
             var distal_chrom = combos[selected_combo%3];
             var proximal_chrom = combos[Math.floor(selected_combo/3)];
@@ -173,7 +173,6 @@ def visualizationResponse(form):
             inset.set('title', '');
             chrom_source.get('selected')['1d'] = {indices: []};
             inset_data = inset_source.get('data');
-            var fields = ['x', 'proximal_start', 'proximal_end', 'distal_start', 'y', 'distal_end', 'width', 'height', 'sample'];
             for (var j = 0; j < fields.length; j++) {
                 inset_data[fields[j]] = [];
             }
