@@ -147,14 +147,25 @@ def visualizationResponse(form):
             var active_data = active_source.get('data');
             var data;
             var selected_combo;
+            var hi_threshold = 1e7;
+            var lo_threshold = 1e4;
             var fields = ['x', 'proximal_start', 'proximal_end', 'distal_start', 'y', 'distal_end', 'width', 'height', 'sample'];
+            for (var j = 0; j < fields.length; j++) {
+                active_data[fields[j]] = [];
+            }
             for (var i = 0; i < inputs.length; i++) {
                 data = sources[i].get('data');
                 if (inputs[i].checked) {
-                    for (var j = 0; j < fields.length; j++) {
-                        active_data[fields[j]] = data[fields[j]];
-                        selected_combo = i;
+                    for (var k = 0; k < data['height'].length; k++) {
+                        if (data['height'][k] > hi_threshold || data['width'][k] > hi_threshold) {
+                            if (data['height'][k] > lo_threshold && data['width'][k] > lo_threshold) {
+                                for (var j = 0; j < fields.length; j++) {
+                                    active_data[fields[j]].push(data[fields[j]][k]);
+                                }
+                            }
+                        }
                     }
+                    selected_combo = i;
                     active_source.trigger('change');
                     break;
                 }

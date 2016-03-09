@@ -25,8 +25,8 @@ cdef int UNK = 0b1000
 NUM_SUBSPECIES = 3
 
 cdef int _SHIFT = 4
-cdef int _PROXIMAL_MASK = 0b111 << _SHIFT
-cdef int _DISTAL_MASK = 0b111
+cdef int _PROXIMAL_MASK = 0b1111 << _SHIFT
+cdef int _DISTAL_MASK = 0b1111
 
 
 cpdef int combine(int proximal_origin, int distal_origin):

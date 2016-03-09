@@ -396,7 +396,7 @@ class TwoLocus:
         output = [[[], [], [], [], []] for _ in xrange(subspecies.NUM_SUBSPECIES**2)]
         for strain in foreground_strains:
             elem_intervals = self.make_elementary_intervals(
-                [self.sample_dict[sn][0] for sn in [strain] + foreground_strains])
+                [self.sample_dict[sn][0] for sn in background_strains + [strain]])
             background_absent = np.logical_not(self.build_pairwise_matrix(background_strains, elem_intervals))
             foreground = self.build_pairwise_matrix([strain], elem_intervals)
             uniquities = np.logical_and(foreground, background_absent)
@@ -438,6 +438,33 @@ class TwoLocus:
                 ])
         return output
 
+    def contingency_table(self, dead_strains, live_strains, output_file):
+        elem_intervals = self.make_elementary_intervals(
+            [self.sample_dict[sn][0] for sn in dead_strains + live_strains]
+        )
+        num_dead = len(dead_strains)
+        num_live = len(live_strains)
+        dead_observed = self.build_pairwise_matrix(dead_strains, elem_intervals)
+        live_observed = self.build_pairwise_matrix(live_strains, elem_intervals)
+        with open(output_file, 'w+') as fp:
+            writer = csv.writer(fp)
+            writer.writerow(['Proximal chromosome', 'Proximal start', 'Proximal end',
+                             'Distal chromosome', 'Distal start', 'Distal end',
+                             'Proximal origin', 'Distal origin', 'chi squared', 'p-value'])
+            elem_intervals.insert(0, 0)
+            for combo in xrange(subspecies.NUM_SUBSPECIES**2):
+                for i in xrange(len(elem_intervals)-1):
+                    for j in xrange(i+1, len(elem_intervals)-1):
+                        if dead_observed[combo, i, j] and live_observed[combo, i, j]:
+                            contingency = np.array([[dead_observed[combo, i, j], live_observed[combo, i, j]],
+                                                    [num_dead-dead_observed[combo, i, j],
+                                                     num_live-live_observed[combo, i, j]]])
+                            chi_squared, p, _, _ = stats.chi2_contingency(contingency)
+                            proximal_pos = self.chrom_and_pos(elem_intervals[i], elem_intervals[i+1])
+                            distal_pos = self.chrom_and_pos(elem_intervals[j], elem_intervals[j+1])
+                            writer.writerow(proximal_pos + distal_pos +
+                                            (subspecies.proximal(combo), subspecies.distal(combo), chi_squared, p))
+
 
 def main():
     """ Run some tests with a dummy file, overriding chromosome lengths locally for sake of testing.
@@ -469,7 +496,7 @@ def main():
                      # 'PWD/PhJ', 'PWK/PhJ', 'RBA/DnJ', 'RBB/DnJ', 'RBF/DnJ', 'SF/CamEiJ', 'SKIVE/EiJ', 'SOD1/EiJ',
                      # 'STLT', 'STRA', 'STRB', 'STUF', 'STUP', 'STUS', 'TIRANO/EiJ', 'WLA', 'WMP', 'WSB/EiJ',
                      'ZALENDE/EiJ'] if tl.is_available(s)]
-    tl.unique_combos(classical, wild_derived)
+    tl.contingency_table(classical, wild_derived, '/csbiohome01/sgreens/Projects/intervals/contingency.csv')
     exit()
     x = TwoLocus(chrom_sizes=[20e6, 20e6])
     x.preprocess(["test2.csv"])

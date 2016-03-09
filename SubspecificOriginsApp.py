@@ -64,8 +64,8 @@ def originsVisualizationResponse(form):
     absent_regions = tl.absent_regions(strains)
     plot = bokeh.plotting.figure(y_range=bokeh.models.Range1d(start=tl.offsets[-1] + 10e7, end=0),
                                  height=750, width=750,
-                                 background_fill='black',
-                                 tools=['box_zoom', 'pan', 'wheel_zoom', 'reset', 'save', 'tap', 'resize',
+                                 background_fill_color='black',
+                                 tools=['tap', 'resize',
                                         bokeh.models.HoverTool(
                                             names=["chroms"],
                                             tooltips=[('Proximal', '@proximal'), ('Distal', '@distal')])])
@@ -92,8 +92,6 @@ def originsVisualizationResponse(form):
         y_positions = np.add(np.array(combo_regions[2])[coarse_indices], region_heights/2)
         plot.rect(x_positions, y_positions, region_widths, region_heights, color='white')
         break
-    # find coarse data
-    # draw chromosomes
     chrom_data = dict(
             x=[],
             y=[],
@@ -119,12 +117,57 @@ def originsVisualizationResponse(form):
               text_color='white', text_font_size="10pt")
     plot.text(x=text_offsets, y=tl.offsets[-1] + 10e7, text=twolocus.INT_TO_CHROMO[1:], text_color='white',
               text_font_size="8pt")
-    bokeh.plotting.show(plot)
+    inset_plot = bokeh.plotting.figure()
+    inset_plot.x_range.bounds = 'auto'
+    inset_plot.y_range.bounds = 'auto'
+    inset_data_source = bokeh.models.ColumnDataSource(data=dict(
+        x=[],
+        y=[],
+        width=[],
+        height=[]
+    ))
+    inset_plot.rect('x', 'y', 'width', 'height', color='black')
+    bokeh.plotting.show(bokeh.io.hplot(plot, inset_plot))
     with open(plot_file) as fp:
         panel.add(fp.read())
     return panel
     helper.visualize_genome(data, tl, len(strains))
     # print json.dumps(data, cls=helper.NumpyEncoder)
+
+
+def to_rect(prox_start, prox_end, dist_start, dist_end):
+    width = prox_end - prox_start
+    height = dist_end - dist_start
+    return prox_start + width/2, dist_start + height/2, width, height
+
+
+def json_data_by_chrom(data, panel, tl, var_name):
+    """
+    :param data: array of (x, y, width, height)
+    :param panel: panel for writing to output webpage
+    :param tl: twolocus instance
+    :param var_name: what to call the json object in which the data is stored
+    """
+    data_index = 0
+    data_by_chrom = []
+    for combo_num, combo_data in data:
+        i = 1
+        data_by_chrom.append([])
+        while i < len(tl.sizes):
+            j = 1
+            data_by_chrom[combo_num].append([])
+            while data[data_index][0] < tl.offsets[i]:
+                data_by_chrom[combo_num][i].append([])
+                while data[data_index][1] < tl.offsets[j]:
+                    data_by_chrom[combo_num][i][j].append(to_rect(*data[data_index]))
+                    data_index += 1
+                j += 1
+            i += 1
+    panel.script(type="text/javascript")
+    panel.add('var %s = ' % var_name)
+    panel.add(json.dumps(data_by_chrom))
+    panel.add(';')
+    panel.script.close()
 
 
 if __name__ == '__main__':
