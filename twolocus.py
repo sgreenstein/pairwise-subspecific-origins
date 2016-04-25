@@ -11,6 +11,7 @@ import os
 import sys
 import numpy as np
 import csv
+import glob
 import logging
 # import subspecies
 import pyximport
@@ -160,13 +161,13 @@ class TwoLocus:
                     lastEnd = 0 if not intervals else intervals[-1][1]
                     # add null interval if there is a gap between intervals with assigned subspecies
                     if not int(row[START]) - 1 <= lastEnd <= int(row[START]) + 1:
-                        intervals.append((subspecies.UNK, int(row[START])))
+                        intervals.append((subspecies.UNKNOWN, int(row[START])))
                     intervals.append((subspec_int(row), int(row[END])))
         # add null interval to end of each chromosome
         for chromosomes in strains.itervalues():
             for chromosome, intervals in chromosomes.iteritems():
                 if intervals[-1] < self.sizes[chromosome - 1]:
-                    intervals.append((subspecies.UNK, self.sizes[chromosome - 1]))
+                    intervals.append((subspecies.UNKNOWN, self.sizes[chromosome - 1]))
         return strains
 
     def intervals_and_sources(self, chromosomes):
@@ -470,6 +471,10 @@ def main():
     """ Run some tests with a dummy file, overriding chromosome lengths locally for sake of testing.
     """
     tl = TwoLocus(in_path='/csbiodata/public/www.csbio.unc.edu/htdocs/sgreens/pairwise_origins/')
+    # tl = TwoLocus()
+    # tl.preprocess(glob.glob('OR_ss_origins/*.hap'))
+    print len(tl.list_available_strains())
+    exit()
     # print len(tl.list_available_strains())
     # tl.preprocess(['cc_origins.csv'])
     # tl.preprocess(['ccv_origins.csv'])
@@ -519,9 +524,9 @@ def main():
     print "\t{:21s}:{:1.5f}".format("Total", total)
 
     sys.exit(1)
-    for code, combo in combos.iteritems():
-        print "\n", rez[1]
-        print "\t{} ({}):\n{}".format(combo, code, rez[0][code])
+    # for code, combo in combos.iteritems():
+    #     print "\n", rez[1]
+    #     print "\t{} ({}):\n{}".format(combo, code, rez[0][code])
 
 
 if __name__ == "__main__":

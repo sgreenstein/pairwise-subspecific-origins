@@ -24,6 +24,8 @@ cdef int CAS = 0b100
 cdef int UNK = 0b1000
 NUM_SUBSPECIES = 3
 
+UNKNOWN = UNK
+
 cdef int _SHIFT = 4
 cdef int _PROXIMAL_MASK = 0b1111 << _SHIFT
 cdef int _DISTAL_MASK = 0b1111
